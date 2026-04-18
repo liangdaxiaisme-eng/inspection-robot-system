@@ -656,24 +656,22 @@
         updateStats();
     });
 
-    // 轮询兜底：每 1 秒从 API 拉取机器人位置
+    // 始终轮询：每 1 秒从 API 拉取机器人位置（确保实时更新）
     setInterval(async () => {
-        if (!wsConnected) {
-            try {
-                const data = await fetch('/api/robots').then(r => r.json());
-                const robotsObj = {};
-                data.forEach(r => {
-                    const { sensors, current_target, ...rest } = r;
-                    robotsObj[r.id] = rest;
-                });
-                robots = robotsObj;
-                document.getElementById('map-time').textContent =
-                    new Date().toLocaleTimeString('zh-CN', { hour12: false });
-                renderRobotList();
-                drawMap();
-                updateStats();
-            } catch (e) {}
-        }
+        try {
+            const data = await fetch('/api/robots').then(r => r.json());
+            const robotsObj = {};
+            data.forEach(r => {
+                const { sensors, current_target, ...rest } = r;
+                robotsObj[r.id] = rest;
+            });
+            robots = robotsObj;
+            document.getElementById('map-time').textContent =
+                new Date().toLocaleTimeString('zh-CN', { hour12: false });
+            renderRobotList();
+            drawMap();
+            updateStats();
+        } catch (e) {}
     }, 1000);
 
     // ============================================================
