@@ -1,0 +1,1236 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>工厂分布式智能巡检机器人系统</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #1a73e8;
+            --success: #34a853;
+            --warning: #fbbc04;
+            --danger: #ea4335;
+            --dark: #1e293b;
+            --card-bg: #ffffff;
+            --body-bg: #f0f2f5;
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background: var(--body-bg);
+            margin: 0;
+            color: #333;
+        }
+        
+        /* 顶部导航 */
+        .top-nav {
+            background: linear-gradient(135deg, #1a237e 0%, #0d47a1 50%, #01579b 100%);
+            color: white;
+            padding: 0 24px;
+            height: 56px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+        .top-nav h1 {
+            font-size: 18px;
+            margin: 0;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .top-nav h1 i { font-size: 24px; }
+        .nav-right {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            font-size: 14px;
+        }
+        .nav-right .status-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: #4caf50;
+            display: inline-block;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        /* 统计卡片 */
+        .stat-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            padding: 20px 24px 0;
+        }
+        .stat-card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 16px 20px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            transition: transform 0.2s;
+        }
+        .stat-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.12); }
+        .stat-icon {
+            width: 48px; height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            color: white;
+        }
+        .stat-icon.blue { background: linear-gradient(135deg, #42a5f5, #1565c0); }
+        .stat-icon.green { background: linear-gradient(135deg, #66bb6a, #2e7d32); }
+        .stat-icon.orange { background: linear-gradient(135deg, #ffa726, #e65100); }
+        .stat-icon.red { background: linear-gradient(135deg, #ef5350, #b71c1c); }
+        .stat-icon.purple { background: linear-gradient(135deg, #ab47bc, #6a1b9a); }
+        .stat-icon.cyan { background: linear-gradient(135deg, #26c6da, #00838f); }
+        .stat-value { font-size: 28px; font-weight: 700; color: var(--dark); line-height: 1; }
+        .stat-label { font-size: 13px; color: #666; margin-top: 4px; }
+        
+        /* 主布局 */
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            gap: 16px;
+            padding: 20px 24px;
+        }
+        @media (max-width: 1200px) {
+            .main-content { grid-template-columns: 1fr; }
+        }
+        
+        /* 面板 */
+        .panel {
+            background: var(--card-bg);
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            overflow: hidden;
+        }
+        .panel-header {
+            padding: 14px 20px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-weight: 600;
+            font-size: 15px;
+            color: var(--dark);
+        }
+        .panel-header i { margin-right: 8px; color: var(--primary); }
+        .panel-body { padding: 16px 20px; }
+        
+        /* 机器人画布 */
+        .map-container {
+            position: relative;
+            background: #f8f9fa;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid #e0e0e0;
+        }
+        #mapCanvas {
+            width: 100%;
+            height: 420px;
+            cursor: crosshair;
+        }
+        .map-legend {
+            display: flex;
+            gap: 16px;
+            padding: 10px 16px;
+            background: #fafafa;
+            border-top: 1px solid #eee;
+            font-size: 12px;
+            color: #666;
+            flex-wrap: wrap;
+        }
+        .map-legend span {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .legend-dot {
+            width: 10px; height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        
+        /* 机器人列表 */
+        .robot-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 16px;
+            border-bottom: 1px solid #f0f0f0;
+            gap: 12px;
+            transition: background 0.2s;
+            cursor: pointer;
+        }
+        .robot-item:hover { background: #f8f9ff; }
+        .robot-item:last-child { border-bottom: none; }
+        .robot-avatar {
+            width: 44px; height: 44px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            color: white;
+            flex-shrink: 0;
+        }
+        .robot-avatar.patrolling { background: linear-gradient(135deg, #42a5f5, #1565c0); }
+        .robot-avatar.charging { background: linear-gradient(135deg, #ffa726, #e65100); }
+        .robot-avatar.idle { background: linear-gradient(135deg, #bdbdbd, #757575); }
+        .robot-avatar.returning { background: linear-gradient(135deg, #ab47bc, #6a1b9a); }
+        .robot-info { flex: 1; min-width: 0; }
+        .robot-name { font-weight: 600; font-size: 14px; color: var(--dark); }
+        .robot-task { font-size: 12px; color: #888; margin-top: 2px; }
+        .robot-status {
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        .robot-status.patrolling { background: #e3f2fd; color: #1565c0; }
+        .robot-status.charging { background: #fff3e0; color: #e65100; }
+        .robot-status.idle { background: #f5f5f5; color: #757575; }
+        .robot-status.returning { background: #f3e5f5; color: #6a1b9a; }
+        
+        /* 电池条 */
+        .battery-bar {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 6px;
+        }
+        .battery-track {
+            flex: 1;
+            height: 6px;
+            background: #e0e0e0;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .battery-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.5s;
+        }
+        .battery-fill.high { background: var(--success); }
+        .battery-fill.medium { background: var(--warning); }
+        .battery-fill.low { background: var(--danger); }
+        .battery-text { font-size: 11px; color: #888; min-width: 35px; text-align: right; }
+        
+        /* 传感器状态 */
+        .sensor-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            margin-top: 8px;
+        }
+        .sensor-item {
+            text-align: center;
+            padding: 6px 4px;
+            border-radius: 6px;
+            font-size: 11px;
+        }
+        .sensor-item.ok { background: #e8f5e9; color: #2e7d32; }
+        .sensor-item.warning { background: #fff3e0; color: #e65100; }
+        .sensor-item i { font-size: 16px; display: block; margin-bottom: 2px; }
+        
+        /* 告警列表 */
+        .alert-item {
+            padding: 10px 14px;
+            border-left: 3px solid var(--warning);
+            background: #fffde7;
+            border-radius: 0 8px 8px 0;
+            margin-bottom: 8px;
+            font-size: 13px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 8px;
+        }
+        .alert-item.critical {
+            border-left-color: var(--danger);
+            background: #ffebee;
+        }
+        .alert-item.acked {
+            border-left-color: #bdbdbd;
+            background: #f5f5f5;
+            opacity: 0.6;
+        }
+        .alert-time { font-size: 11px; color: #999; white-space: nowrap; }
+        .alert-msg { flex: 1; }
+        .alert-btn {
+            font-size: 11px;
+            padding: 2px 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: white;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .alert-btn:hover { background: #f0f0f0; }
+        
+        /* 巡检日志 */
+        .log-item {
+            display: flex;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 13px;
+            gap: 10px;
+        }
+        .log-item:last-child { border-bottom: none; }
+        .log-result {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .log-result.normal { background: #e8f5e9; color: #2e7d32; }
+        .log-result.warning { background: #fff3e0; color: #e65100; }
+        .log-time { color: #999; font-size: 11px; min-width: 70px; }
+        .log-detail { flex: 1; }
+        
+        /* 图表 */
+        .chart-container {
+            height: 200px;
+            position: relative;
+        }
+        
+        /* 图像识别 */
+        .upload-zone {
+            border: 2px dashed #ccc;
+            border-radius: 12px;
+            padding: 30px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #fafafa;
+        }
+        .upload-zone:hover {
+            border-color: var(--primary);
+            background: #f0f4ff;
+        }
+        .upload-zone i { font-size: 40px; color: #aaa; }
+        .upload-zone p { margin: 8px 0 0; color: #888; font-size: 14px; }
+        .recognition-result {
+            margin-top: 16px;
+            padding: 16px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .rec-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .rec-item:last-child { border-bottom: none; }
+        .confidence-bar {
+            width: 80px;
+            height: 6px;
+            background: #e0e0e0;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .confidence-fill {
+            height: 100%;
+            background: var(--success);
+            border-radius: 3px;
+        }
+        
+        /* SLAM地图 */
+        #slamCanvas {
+            width: 100%;
+            height: 300px;
+            background: #1a1a2e;
+            border-radius: 8px;
+        }
+        
+        /* 机器人详情弹窗 */
+        .modal-robot-detail .robot-detail-sensors {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+        .sensor-card {
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .sensor-card.ok { background: #e8f5e9; }
+        .sensor-card.warning { background: #fff3e0; }
+        .sensor-card i { font-size: 28px; display: block; margin-bottom: 4px; }
+        
+        /* 按钮组 */
+        .btn-group-robot {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+        .btn-group-robot .btn {
+            flex: 1;
+            font-size: 13px;
+        }
+        
+        /* 右侧面板 */
+        .right-panels {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        
+        /* 滚动区域 */
+        .scroll-area {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .scroll-area::-webkit-scrollbar { width: 4px; }
+        .scroll-area::-webkit-scrollbar-thumb { background: #ddd; border-radius: 2px; }
+        
+        /* Tab */
+        .tab-bar {
+            display: flex;
+            gap: 0;
+            border-bottom: 2px solid #eee;
+            padding: 0 20px;
+        }
+        .tab-item {
+            padding: 10px 16px;
+            font-size: 13px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            color: #666;
+            transition: all 0.2s;
+        }
+        .tab-item:hover { color: var(--primary); }
+        .tab-item.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+            font-weight: 600;
+        }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+    </style>
+</head>
+<body>
+    <!-- 顶部导航 -->
+    <nav class="top-nav">
+        <h1><i class="bi bi-robot"></i> 工厂分布式智能巡检机器人系统</h1>
+        <div class="nav-right">
+            <span><span class="status-dot"></span> 系统在线</span>
+            <span id="clock">--:--:--</span>
+        </div>
+    </nav>
+
+    <!-- 统计卡片 -->
+    <div class="stat-cards">
+        <div class="stat-card">
+            <div class="stat-icon blue"><i class="bi bi-robot"></i></div>
+            <div>
+                <div class="stat-value" id="stat-robots">3</div>
+                <div class="stat-label">机器人总数</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon green"><i class="bi bi-play-circle"></i></div>
+            <div>
+                <div class="stat-value" id="stat-active">0</div>
+                <div class="stat-label">正在巡检</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon orange"><i class="bi bi-battery-charging"></i></div>
+            <div>
+                <div class="stat-value" id="stat-charging">0</div>
+                <div class="stat-label">充电中</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon purple"><i class="bi bi-clipboard-check"></i></div>
+            <div>
+                <div class="stat-value" id="stat-inspections">0</div>
+                <div class="stat-label">今日巡检次数</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon cyan"><i class="bi bi-bullseye"></i></div>
+            <div>
+                <div class="stat-value" id="stat-points">0</div>
+                <div class="stat-label">巡检点位</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon red"><i class="bi bi-exclamation-triangle"></i></div>
+            <div>
+                <div class="stat-value" id="stat-alerts">0</div>
+                <div class="stat-label">未处理告警</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 主内容区 -->
+    <div class="main-content">
+        <!-- 左侧 -->
+        <div class="left-panels">
+            <!-- 巡检地图 -->
+            <div class="panel" style="margin-bottom: 16px;">
+                <div class="panel-header">
+                    <span><i class="bi bi-map"></i> 巡检地图 & 机器人实时位置</span>
+                    <span style="font-size:12px;color:#999" id="map-time">--:--:--</span>
+                </div>
+                <div class="panel-body" style="padding: 12px;">
+                    <div class="map-container">
+                        <canvas id="mapCanvas"></canvas>
+                        <div class="map-legend">
+                            <span><span class="legend-dot" style="background:#1565c0"></span> 巡检中</span>
+                            <span><span class="legend-dot" style="background:#e65100"></span> 充电中</span>
+                            <span><span class="legend-dot" style="background:#757575"></span> 空闲</span>
+                            <span><span class="legend-dot" style="background:#6a1b9a"></span> 返回中</span>
+                            <span><span class="legend-dot" style="background:#f44336"></span> 巡检点(异常)</span>
+                            <span><span class="legend-dot" style="background:#4caf50"></span> 巡检点(正常)</span>
+                            <span><span class="legend-dot" style="background:#ff9800"></span> 充电站</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 下方Tab区域 -->
+            <div class="panel">
+                <div class="tab-bar">
+                    <div class="tab-item active" data-tab="logs"><i class="bi bi-journal-text"></i> 巡检记录</div>
+                    <div class="tab-item" data-tab="recognition"><i class="bi bi-camera"></i> 图像识别</div>
+                    <div class="tab-item" data-tab="slam"><i class="bi bi-grid-3x3"></i> SLAM建图</div>
+                    <div class="tab-item" data-tab="charts"><i class="bi bi-bar-chart"></i> 统计分析</div>
+                </div>
+                
+                <!-- 巡检记录 -->
+                <div class="tab-content active" id="tab-logs">
+                    <div class="panel-body scroll-area" style="max-height:280px" id="logs-container">
+                        <div style="text-align:center;color:#999;padding:40px 0">暂无巡检记录</div>
+                    </div>
+                </div>
+                
+                <!-- 图像识别 -->
+                <div class="tab-content" id="tab-recognition">
+                    <div class="panel-body">
+                        <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
+                            <i class="bi bi-cloud-arrow-up"></i>
+                            <p>点击或拖拽上传设备图像</p>
+                            <p style="font-size:12px;color:#aaa">支持 JPG、PNG 格式</p>
+                        </div>
+                        <input type="file" id="fileInput" accept="image/*" style="display:none">
+                        <div id="recognition-result"></div>
+                    </div>
+                </div>
+                
+                <!-- SLAM建图 -->
+                <div class="tab-content" id="tab-slam">
+                    <div class="panel-body">
+                        <canvas id="slamCanvas"></canvas>
+                    </div>
+                </div>
+                
+                <!-- 统计分析 -->
+                <div class="tab-content" id="tab-charts">
+                    <div class="panel-body">
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+                            <div>
+                                <h6 style="font-size:13px;color:#666;margin-bottom:8px">每日巡检次数</h6>
+                                <div class="chart-container"><canvas id="chartInspections"></canvas></div>
+                            </div>
+                            <div>
+                                <h6 style="font-size:13px;color:#666;margin-bottom:8px">故障趋势</h6>
+                                <div class="chart-container"><canvas id="chartFaults"></canvas></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右侧 -->
+        <div class="right-panels">
+            <!-- 机器人列表 -->
+            <div class="panel">
+                <div class="panel-header">
+                    <span><i class="bi bi-robot"></i> 机器人状态</span>
+                    <span class="badge bg-primary" id="robot-count">3</span>
+                </div>
+                <div id="robot-list"></div>
+            </div>
+
+            <!-- 告警信息 -->
+            <div class="panel">
+                <div class="panel-header">
+                    <span><i class="bi bi-bell"></i> 实时告警</span>
+                    <span class="badge bg-danger" id="alert-count">0</span>
+                </div>
+                <div class="panel-body scroll-area" id="alerts-container">
+                    <div style="text-align:center;color:#999;padding:20px 0">暂无告警</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 机器人详情弹窗 -->
+    <div class="modal fade" id="robotModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modal-title">机器人详情</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="modal-body"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.2/dist/socket.io.min.js"></script>
+    <script>
+    // ============================================================
+    // 全局状态
+    // ============================================================
+    let robots = {};
+    let inspectionPoints = [];
+    let chartInspections = null;
+    let chartFaults = null;
+
+    // ============================================================
+    // 时钟
+    // ============================================================
+    function updateClock() {
+        const now = new Date();
+        const t = now.toLocaleTimeString('zh-CN', { hour12: false });
+        document.getElementById('clock').textContent = t;
+        document.getElementById('map-time').textContent = t;
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    // ============================================================
+    // WebSocket 连接
+    // ============================================================
+    const socket = io();
+    socket.on('connect', () => console.log('Connected'));
+    socket.on('robot_update', (data) => {
+        robots = data.robots;
+        document.getElementById('map-time').textContent = data.timestamp;
+        renderRobotList();
+        drawMap();
+        updateStats();
+    });
+
+    // ============================================================
+    // 初始数据加载
+    // ============================================================
+    async function loadInitialData() {
+        const [pts, logs, alerts, stats] = await Promise.all([
+            fetch('/api/points').then(r => r.json()),
+            fetch('/api/logs').then(r => r.json()),
+            fetch('/api/alerts').then(r => r.json()),
+            fetch('/api/stats').then(r => r.json()),
+        ]);
+        inspectionPoints = pts;
+        renderLogs(logs);
+        renderAlerts(alerts);
+        updateStatsFromAPI(stats);
+        drawSLAM();
+    }
+
+    // ============================================================
+    // 统计更新
+    // ============================================================
+    function updateStats() {
+        const robotList = Object.values(robots);
+        document.getElementById('stat-active').textContent = robotList.filter(r => r.status === 'patrolling').length;
+        document.getElementById('stat-charging').textContent = robotList.filter(r => r.status === 'charging').length;
+    }
+
+    async function updateStatsFromAPI(stats) {
+        document.getElementById('stat-robots').textContent = stats.total_robots;
+        document.getElementById('stat-active').textContent = stats.active_robots;
+        document.getElementById('stat-charging').textContent = stats.charging_robots;
+        document.getElementById('stat-inspections').textContent = stats.today_inspections;
+        document.getElementById('stat-points').textContent = stats.total_points;
+        document.getElementById('stat-alerts').textContent = stats.active_alerts;
+        
+        // 图表
+        renderCharts(stats.historical);
+    }
+
+    // ============================================================
+    // 机器人列表渲染
+    // ============================================================
+    function renderRobotList() {
+        const container = document.getElementById('robot-list');
+        const statusMap = {
+            patrolling: '巡检中', charging: '充电中', idle: '空闲', returning: '返回中'
+        };
+        const iconMap = {
+            patrolling: 'bi-crosshair', charging: 'bi-battery-charging', 
+            idle: 'bi-pause-circle', returning: 'bi-arrow-return-left'
+        };
+        
+        let html = '';
+        for (const [id, robot] of Object.entries(robots)) {
+            const battClass = robot.battery > 50 ? 'high' : robot.battery > 20 ? 'medium' : 'low';
+            const sensors = robot.sensors || {};
+            const sensorHtml = Object.entries(sensors).map(([k, v]) => {
+                const icons = { lidar: 'bi-radar', camera: 'bi-camera', infrared: 'bi-thermometer-half', temp_humi: 'bi-droplet' };
+                const names = { lidar: '雷达', camera: '相机', infrared: '红外', temp_humi: '温湿' };
+                return `<div class="sensor-item ${v}"><i class="bi ${icons[k] || 'bi-cpu'}"></i>${names[k] || k}</div>`;
+            }).join('');
+            
+            html += `
+            <div class="robot-item" onclick="showRobotDetail('${id}')">
+                <div class="robot-avatar ${robot.status}">
+                    <i class="bi ${iconMap[robot.status] || 'bi-robot'}"></i>
+                </div>
+                <div class="robot-info">
+                    <div class="robot-name">${robot.name}</div>
+                    <div class="robot-task">${robot.current_task || '无任务'}</div>
+                    <div class="battery-bar">
+                        <i class="bi bi-battery-half" style="font-size:12px;color:#888"></i>
+                        <div class="battery-track"><div class="battery-fill ${battClass}" style="width:${robot.battery}%"></div></div>
+                        <span class="battery-text">${robot.battery}%</span>
+                    </div>
+                    <div class="sensor-grid">${sensorHtml}</div>
+                </div>
+                <span class="robot-status ${robot.status}">${statusMap[robot.status] || robot.status}</span>
+            </div>`;
+        }
+        container.innerHTML = html;
+        document.getElementById('robot-count').textContent = Object.keys(robots).length;
+    }
+
+    // ============================================================
+    // 机器人详情
+    // ============================================================
+    function showRobotDetail(id) {
+        const robot = robots[id];
+        if (!robot) return;
+        
+        const statusMap = { patrolling: '巡检中', charging: '充电中', idle: '空闲', returning: '返回中' };
+        const modal = new bootstrap.Modal(document.getElementById('robotModal'));
+        document.getElementById('modal-title').textContent = robot.name;
+        
+        document.getElementById('modal-body').innerHTML = `
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+                <div><strong>状态:</strong> <span class="robot-status ${robot.status}">${statusMap[robot.status]}</span></div>
+                <div><strong>电量:</strong> ${robot.battery}%</div>
+                <div><strong>当前任务:</strong> ${robot.current_task || '无'}</div>
+                <div><strong>位置:</strong> (${Math.round(robot.x)}, ${Math.round(robot.y)})</div>
+                <div><strong>累计行程:</strong> ${robot.total_distance?.toFixed(1) || 0} m</div>
+                <div><strong>故障次数:</strong> ${robot.fault_count || 0}</div>
+                <div><strong>上次巡检:</strong> ${robot.last_inspection || '--'}</div>
+            </div>
+            <div class="btn-group-robot">
+                <button class="btn btn-primary btn-sm" onclick="sendCommand('${id}', 'start_patrol')">
+                    <i class="bi bi-play-fill"></i> 开始巡检
+                </button>
+                <button class="btn btn-warning btn-sm" onclick="sendCommand('${id}', 'charge')">
+                    <i class="bi bi-battery-charging"></i> 返回充电
+                </button>
+                <button class="btn btn-secondary btn-sm" onclick="sendCommand('${id}', 'stop')">
+                    <i class="bi bi-stop-fill"></i> 停止
+                </button>
+            </div>
+        `;
+        modal.show();
+    }
+
+    async function sendCommand(robotId, command) {
+        const res = await fetch(`/api/robots/${robotId}/command`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ command })
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+            alert(data.message);
+        }
+    }
+
+    // ============================================================
+    // 地图绘制
+    // ============================================================
+    function drawMap() {
+        const canvas = document.getElementById('mapCanvas');
+        const ctx = canvas.getContext('2d');
+        const rect = canvas.getBoundingClientRect();
+        canvas.width = rect.width * (window.devicePixelRatio || 1);
+        canvas.height = rect.height * (window.devicePixelRatio || 1);
+        ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
+        
+        const W = rect.width, H = rect.height;
+        const scaleX = W / 550, scaleY = H / 420;
+        
+        // 背景
+        ctx.fillStyle = '#f0f4f8';
+        ctx.fillRect(0, 0, W, H);
+        
+        // 网格
+        ctx.strokeStyle = '#e8ecf0';
+        ctx.lineWidth = 0.5;
+        for (let x = 0; x < W; x += 30) {
+            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+        }
+        for (let y = 0; y < H; y += 30) {
+            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+        }
+        
+        // 围墙
+        ctx.strokeStyle = '#90a4ae';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(20 * scaleX, 20 * scaleY, 500 * scaleX, 380 * scaleY);
+        
+        // 内部墙壁
+        ctx.strokeStyle = '#b0bec5';
+        ctx.lineWidth = 2;
+        // 横墙1
+        ctx.beginPath();
+        ctx.moveTo(60 * scaleX, 150 * scaleY);
+        ctx.lineTo(400 * scaleX, 150 * scaleY);
+        ctx.stroke();
+        // 横墙2
+        ctx.beginPath();
+        ctx.moveTo(60 * scaleX, 260 * scaleY);
+        ctx.lineTo(460 * scaleX, 260 * scaleY);
+        ctx.stroke();
+        
+        // 巡检路径
+        ctx.strokeStyle = '#bbdefb';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([5, 5]);
+        const points = inspectionPoints;
+        if (points.length > 1) {
+            ctx.beginPath();
+            ctx.moveTo(points[0].x * scaleX, points[0].y * scaleY);
+            for (let i = 1; i < points.length; i++) {
+                ctx.lineTo(points[i].x * scaleX, points[i].y * scaleY);
+            }
+            ctx.stroke();
+        }
+        ctx.setLineDash([]);
+        
+        // 巡检点
+        for (const p of points) {
+            const x = p.x * scaleX, y = p.y * scaleY;
+            ctx.beginPath();
+            ctx.arc(x, y, 10, 0, Math.PI * 2);
+            ctx.fillStyle = p.type === 'charging_station' ? '#ff9800' : 
+                           p.status === 'warning' ? '#f44336' : '#4caf50';
+            ctx.fill();
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            // 标签
+            ctx.fillStyle = '#333';
+            ctx.font = '10px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(p.name, x, y - 16);
+        }
+        
+        // 机器人
+        const robotColors = {
+            patrolling: '#1565c0', charging: '#e65100', idle: '#757575', returning: '#6a1b9a'
+        };
+        for (const [id, robot] of Object.entries(robots)) {
+            const x = robot.x * scaleX, y = robot.y * scaleY;
+            
+            // 运动轨迹光晕
+            if (robot.status === 'patrolling') {
+                ctx.beginPath();
+                ctx.arc(x, y, 18, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(21, 101, 192, 0.15)';
+                ctx.fill();
+            }
+            
+            // 机器人主体
+            ctx.beginPath();
+            ctx.arc(x, y, 12, 0, Math.PI * 2);
+            ctx.fillStyle = robotColors[robot.status] || '#757575';
+            ctx.fill();
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            // 机器人图标
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 11px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(id.slice(-1), x, y);
+            
+            // 名称标签
+            ctx.fillStyle = '#333';
+            ctx.font = '11px sans-serif';
+            ctx.textBaseline = 'bottom';
+            ctx.fillText(robot.name, x, y - 18);
+            
+            // 电量标签
+            ctx.fillStyle = robot.battery > 50 ? '#2e7d32' : robot.battery > 20 ? '#e65100' : '#c62828';
+            ctx.font = '10px sans-serif';
+            ctx.textBaseline = 'top';
+            ctx.fillText(`${robot.battery}%`, x, y + 16);
+        }
+    }
+
+    // ============================================================
+    // SLAM地图
+    // ============================================================
+    function drawSLAM() {
+        const canvas = document.getElementById('slamCanvas');
+        const ctx = canvas.getContext('2d');
+        const rect = canvas.getBoundingClientRect();
+        canvas.width = rect.width * (window.devicePixelRatio || 1);
+        canvas.height = rect.height * (window.devicePixelRatio || 1);
+        ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
+        
+        const W = rect.width, H = rect.height;
+        const cellW = W / 60, cellH = H / 40;
+        
+        // 生成模拟栅格地图
+        const grid = [];
+        for (let y = 0; y < 40; y++) {
+            grid[y] = [];
+            for (let x = 0; x < 60; x++) {
+                if (y === 0 || y === 39 || x === 0 || x === 59) grid[y][x] = 1;
+                else if (y >= 10 && y <= 11 && x >= 10 && x <= 50) grid[y][x] = 1;
+                else if (y >= 20 && y <= 21 && x >= 5 && x <= 45) grid[y][x] = 1;
+                else if (y >= 30 && y <= 31 && x >= 15 && x <= 55) grid[y][x] = 1;
+                else if (y >= 5 && y <= 30 && x >= 15 && x <= 16) grid[y][x] = 1;
+                else if (y >= 15 && y <= 35 && x >= 35 && x <= 36) grid[y][x] = 1;
+                else grid[y][x] = 0;
+            }
+        }
+        
+        // 绘制
+        for (let y = 0; y < 40; y++) {
+            for (let x = 0; x < 60; x++) {
+                if (grid[y][x] === 1) {
+                    ctx.fillStyle = '#4a5568';
+                } else {
+                    // 模拟探索过的区域（渐变）
+                    const dist = Math.sqrt((x-30)**2 + (y-20)**2);
+                    if (dist < 25) {
+                        ctx.fillStyle = '#e2e8f0';
+                    } else {
+                        ctx.fillStyle = '#2d3748';
+                    }
+                }
+                ctx.fillRect(x * cellW, y * cellH, cellW - 0.5, cellH - 0.5);
+            }
+        }
+        
+        // 机器人位置
+        for (const [id, robot] of Object.entries(robots)) {
+            const rx = (robot.x / 10) * cellW;
+            const ry = (robot.y / 10) * cellH;
+            ctx.beginPath();
+            ctx.arc(rx, ry, 6, 0, Math.PI * 2);
+            ctx.fillStyle = '#2196f3';
+            ctx.fill();
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+        
+        // 激光扫描线（模拟）
+        const t = Date.now() / 1000;
+        ctx.strokeStyle = 'rgba(0, 255, 0, 0.3)';
+        ctx.lineWidth = 1;
+        for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 18) {
+            const cx = W / 2, cy = H / 2;
+            const r = 40 + Math.sin(angle * 3 + t) * 20;
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.lineTo(cx + Math.cos(angle + t) * r, cy + Math.sin(angle + t) * r);
+            ctx.stroke();
+        }
+    }
+
+    // ============================================================
+    // 巡检日志
+    // ============================================================
+    function renderLogs(logs) {
+        const container = document.getElementById('logs-container');
+        if (!logs.length) {
+            container.innerHTML = '<div style="text-align:center;color:#999;padding:40px 0">暂无巡检记录</div>';
+            return;
+        }
+        container.innerHTML = logs.slice(0, 30).map(log => `
+            <div class="log-item">
+                <span class="log-time">${log.time?.split(' ')[1] || ''}</span>
+                <span class="log-result ${log.result === '正常' ? 'normal' : 'warning'}">${log.result}</span>
+                <span class="log-detail">
+                    <strong>${log.robot_name}</strong> → ${log.point_name}
+                    ${log.details ? `<br><small style="color:#888">${log.details.detail || ''}</small>` : ''}
+                </span>
+            </div>
+        `).join('');
+    }
+
+    // 定时刷新日志
+    setInterval(async () => {
+        const logs = await fetch('/api/logs').then(r => r.json());
+        renderLogs(logs);
+        const alerts = await fetch('/api/alerts').then(r => r.json());
+        renderAlerts(alerts);
+    }, 5000);
+
+    // ============================================================
+    // 告警
+    // ============================================================
+    function renderAlerts(alerts) {
+        const container = document.getElementById('alerts-container');
+        const unacked = alerts.filter(a => !a.acknowledged);
+        document.getElementById('alert-count').textContent = unacked.length;
+        document.getElementById('stat-alerts').textContent = unacked.length;
+        
+        if (!alerts.length) {
+            container.innerHTML = '<div style="text-align:center;color:#999;padding:20px 0">暂无告警</div>';
+            return;
+        }
+        container.innerHTML = alerts.slice(0, 10).map(a => `
+            <div class="alert-item ${a.acknowledged ? 'acked' : ''}">
+                <div class="alert-msg">
+                    <strong>${a.point}</strong>: ${a.message}
+                    <div class="alert-time">${a.time}</div>
+                </div>
+                ${!a.acknowledged ? `<button class="alert-btn" onclick="ackAlert('${a.id}')">确认</button>` : ''}
+            </div>
+        `).join('');
+    }
+
+    async function ackAlert(id) {
+        await fetch(`/api/alerts/${id}/acknowledge`, { method: 'POST' });
+        const alerts = await fetch('/api/alerts').then(r => r.json());
+        renderAlerts(alerts);
+    }
+
+    // ============================================================
+    // 图像识别
+    // ============================================================
+        document.getElementById('fileInput').addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        const formData = new FormData();
+        formData.append('image', file);
+        
+        document.getElementById('recognition-result').innerHTML = '<div style="text-align:center;padding:20px"><div class="spinner-border text-primary"></div><p>正在分析中（YOLOv8 + OpenCV）...</p></div>';
+        
+        try {
+            const res = await fetch('/api/recognize', { method: 'POST', body: formData });
+            const data = await res.json();
+            
+            if (data.error) {
+                document.getElementById('recognition-result').innerHTML = `<div class="alert alert-danger">${data.error}</div>`;
+                return;
+            }
+            
+            let html = '<div class="recognition-result">';
+            
+            // 标注后的图片
+            if (data.annotated_url) {
+                html += `<div style="text-align:center;margin-bottom:16px">
+                    <img src="${data.annotated_url}" style="max-width:100%;max-height:250px;border-radius:8px;border:1px solid #ddd">
+                    <p style="font-size:11px;color:#999;margin-top:4px">检测结果标注图</p>
+                </div>`;
+            }
+            
+            // 基本信息
+            html += `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px">
+                <div style="background:#f0f4ff;padding:8px;border-radius:6px;text-align:center">
+                    <div style="font-size:11px;color:#666">文件</div>
+                    <div style="font-weight:600;font-size:13px">${data.filename}</div>
+                </div>
+                <div style="background:#f0f4ff;padding:8px;border-radius:6px;text-align:center">
+                    <div style="font-size:11px;color:#666">尺寸</div>
+                    <div style="font-weight:600;font-size:13px">${data.image_size}</div>
+                </div>
+                <div style="background:#f0f4ff;padding:8px;border-radius:6px;text-align:center">
+                    <div style="font-size:11px;color:#666">耗时</div>
+                    <div style="font-weight:600;font-size:13px">${data.analysis_time}s</div>
+                </div>
+            </div>`;
+            
+            // 综合评估
+            const overallColor = data.overall?.includes('异常') ? '#ea4335' : '#34a853';
+            html += `<div style="padding:10px 14px;border-radius:8px;background:${overallColor}15;border-left:4px solid ${overallColor};margin-bottom:12px">
+                <strong style="color:${overallColor}">${data.overall || '分析完成'}</strong>
+            </div>`;
+            
+            // 图像质量
+            if (data.quality) {
+                html += `<div style="margin-bottom:12px">
+                    <h6 style="font-size:12px;color:#666;margin-bottom:6px"><i class="bi bi-image"></i> 图像质量分析</h6>
+                    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px">
+                        <div style="font-size:12px">亮度: <strong>${data.quality.brightness}</strong></div>
+                        <div style="font-size:12px">对比度: <strong>${data.quality.contrast}</strong></div>
+                        <div style="font-size:12px">清晰度: <strong>${data.quality.sharpness}</strong></div>
+                        <div style="font-size:12px">质量: <strong>${data.quality.quality}</strong></div>
+                    </div>
+                </div>`;
+            }
+            
+            // 红外热成像分析
+            if (data.thermal) {
+                const tColor = data.thermal.status === '正常' ? '#34a853' : data.thermal.status === '警告' ? '#ff9800' : '#ea4335';
+                html += `<div style="margin-bottom:12px">
+                    <h6 style="font-size:12px;color:#666;margin-bottom:6px"><i class="bi bi-thermometer-half"></i> 红外热成像分析</h6>
+                    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px">
+                        <div style="font-size:12px">最高: <strong style="color:${tColor}">${data.thermal.max_temperature}°C</strong></div>
+                        <div style="font-size:12px">最低: <strong>${data.thermal.min_temperature}°C</strong></div>
+                        <div style="font-size:12px">状态: <strong style="color:${tColor}">${data.thermal.status}</strong></div>
+                    </div>
+                    ${data.thermal.detail ? `<div style="font-size:11px;color:#e65100;margin-top:4px">⚠ ${data.thermal.detail}</div>` : ''}
+                </div>`;
+            }
+            
+            // 检测结果
+            if (data.detections && data.detections.length) {
+                html += `<h6 style="font-size:12px;color:#666;margin-bottom:6px"><i class="bi bi-bounding-box"></i> 检测结果 (${data.detections.length}项)</h6>`;
+                for (const rec of data.detections) {
+                    const color = rec.label === '正常' ? '#4caf50' : rec.label === '警告' ? '#ff9800' : rec.label === '异常' ? '#f44336' : '#2196f3';
+                    html += `<div class="rec-item">
+                        <div>
+                            <span style="font-weight:600">${rec.type}</span>
+                            <span style="color:${color};margin-left:8px;font-weight:600">${rec.label}</span>
+                            ${rec.detail ? `<div style="font-size:11px;color:#888;margin-top:2px">${rec.detail}</div>` : ''}
+                        </div>
+                        <div style="display:flex;align-items:center;gap:8px">
+                            <div class="confidence-bar"><div class="confidence-fill" style="width:${rec.confidence*100}%;background:${color}"></div></div>
+                            <span style="font-size:12px;color:#888">${(rec.confidence*100).toFixed(1)}%</span>
+                        </div>
+                    </div>`;
+                }
+            }
+            
+            html += '</div>';
+            document.getElementById('recognition-result').innerHTML = html;
+        } catch (err) {
+            document.getElementById('recognition-result').innerHTML = `<div class="alert alert-danger">识别失败: ${err.message}</div>`;
+        }
+    });
+
+    // 拖拽上传
+    const uploadZone = document.getElementById('uploadZone');
+    uploadZone.addEventListener('dragover', (e) => { e.preventDefault(); uploadZone.style.borderColor = '#1a73e8'; });
+    uploadZone.addEventListener('dragleave', () => { uploadZone.style.borderColor = '#ccc'; });
+    uploadZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadZone.style.borderColor = '#ccc';
+        const file = e.dataTransfer.files[0];
+        if (file && file.type.startsWith('image/')) {
+            const dt = new DataTransfer();
+            dt.items.add(file);
+            document.getElementById('fileInput').files = dt.files;
+            document.getElementById('fileInput').dispatchEvent(new Event('change'));
+        }
+    });
+
+    // ============================================================
+    // Tab切换
+    // ============================================================
+    document.querySelectorAll('.tab-item').forEach(tab => {
+        tab.addEventListener('click', () => {
+            document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+            
+            if (tab.dataset.tab === 'slam') {
+                setTimeout(drawSLAM, 100);
+            }
+            if (tab.dataset.tab === 'charts') {
+                setTimeout(() => {
+                    if (chartInspections) chartInspections.resize();
+                    if (chartFaults) chartFaults.resize();
+                }, 100);
+            }
+        });
+    });
+
+    // ============================================================
+    // 图表
+    // ============================================================
+    function renderCharts(historical) {
+        if (!historical) return;
+        
+        const inspCtx = document.getElementById('chartInspections');
+        const faultCtx = document.getElementById('chartFaults');
+        
+        if (chartInspections) chartInspections.destroy();
+        if (chartFaults) chartFaults.destroy();
+        
+        chartInspections = new Chart(inspCtx, {
+            type: 'bar',
+            data: {
+                labels: historical.daily_inspections.map(d => d.date),
+                datasets: [{
+                    label: '巡检次数',
+                    data: historical.daily_inspections.map(d => d.count),
+                    backgroundColor: 'rgba(26, 115, 232, 0.7)',
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true } }
+            }
+        });
+        
+        chartFaults = new Chart(faultCtx, {
+            type: 'line',
+            data: {
+                labels: historical.fault_trend.map(d => d.date),
+                datasets: [{
+                    label: '故障数',
+                    data: historical.fault_trend.map(d => d.count),
+                    borderColor: '#ea4335',
+                    backgroundColor: 'rgba(234, 67, 53, 0.1)',
+                    fill: true,
+                    tension: 0.4,
+                    pointBackgroundColor: '#ea4335'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true } }
+            }
+        });
+    }
+
+    // ============================================================
+    // 初始化
+    // ============================================================
+    window.addEventListener('resize', () => { drawMap(); drawSLAM(); });
+    loadInitialData();
+    </script>
+</body>
+</html>

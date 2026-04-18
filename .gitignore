@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+static/uploads/annotated_*.jpg
+.models/
+*.egg-info/
+venv/
+.env
