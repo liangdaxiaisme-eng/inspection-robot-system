@@ -27,6 +27,136 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
 
 # ============================================================
+# A* 寻路系统 —— 机器人沿走廊移动，不穿墙
+# ============================================================
+CELL = 5  # 每格 5 像素
+GRID_W = 160  # 800 / 5
+GRID_H = 104  # 520 / 5
+_grid = np.zeros((GRID_H, GRID_W), dtype=np.uint8)
+
+
+def _fill_rect(x1, y1, x2, y2):
+    """标记矩形区域为不可通行"""
+    r1 = max(0, y1 // CELL)
+    r2 = min(GRID_H, y2 // CELL + 1)
+    c1 = max(0, x1 // CELL)
+    c2 = min(GRID_W, x2 // CELL + 1)
+    _grid[r1:r2, c1:c2] = 1
+
+
+def _build_grid():
+    """构建工厂墙壁的通行网格"""
+    global _grid
+    _grid[:] = 0
+    # 外围墙 (3px厚)
+    _fill_rect(27, 17, 773, 23)   # 上
+    _fill_rect(27, 497, 773, 503) # 下
+    _fill_rect(27, 17, 33, 503)   # 左
+    _fill_rect(767, 17, 773, 503) # 右
+
+    # 内墙 - 变配电室
+    _fill_rect(238, 18, 242, 122)  # 垂直墙 上段
+    _fill_rect(238, 138, 242, 182) # 垂直墙 下段（留出门洞 120-140）
+    _fill_rect(28, 178, 382, 182)  # 变配电室下墙（留出门洞）
+
+    # 内墙 - 仓库区上墙
+    _fill_rect(28, 248, 382, 252)
+
+    # 内墙 - 生产车间下墙
+    _fill_rect(378, 218, 622, 222)
+
+    # 内墙 - 右侧配电区左墙（含门洞 y=100-120）
+    _fill_rect(618, 18, 622, 98)
+    _fill_rect(618, 122, 622, 302)
+
+    # 内墙 - 右侧控制区左墙（含门洞 y=340-360）
+    _fill_rect(618, 308, 622, 338)
+    _fill_rect(618, 362, 622, 502)
+
+    # 内墙 - 右侧水平墙
+    _fill_rect(618, 300, 772, 304) # 配电区下墙
+    _fill_rect(618, 308, 772, 312) # 控制区上墙
+
+    # 走廊通道区域（标记为可通行，覆盖掉可能误标记的区域）
+    # 中央横走廊 170-185
+    # 中央竖走廊 375-385, 615-625
+    # 底部横走廊 390-405
+
+
+_build_grid()
+
+
+def _find_path(sx, sy, ex, ey):
+    """A* 寻路，返回路径点列表（像素坐标）"""
+    sr, sc = int(sy // CELL), int(sx // CELL)
+    er, ec = int(ey // CELL), int(ex // CELL)
+    sr = max(0, min(GRID_H - 1, sr))
+    sc = max(0, min(GRID_W - 1, sc))
+    er = max(0, min(GRID_H - 1, er))
+    ec = max(0, min(GRID_W - 1, ec))
+
+    if sr == er and sc == ec:
+        return [(ex, ey)]
+
+    import heapq
+    open_set = [(abs(sr - er) + abs(sc - ec), 0, sr, sc)]
+    came_from = {}
+    g_score = {(sr, sc): 0}
+    closed = set()
+
+    while open_set:
+        f, g, r, c = heapq.heappop(open_set)
+        if (r, c) in closed:
+            continue
+        closed.add((r, c))
+
+        if r == er and c == ec:
+            # 回溯路径
+            path = []
+            node = (r, c)
+            while node in came_from:
+                path.append((node[1] * CELL + CELL // 2, node[0] * CELL + CELL // 2))
+                node = came_from[node]
+            path.reverse()
+            path.append((ex, ey))
+            # 简化路径（去掉中间冗余点）
+            return _simplify_path(path)
+
+        for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+            nr, nc = r + dr, c + dc
+            if 0 <= nr < GRID_H and 0 <= nc < GRID_W and (nr, nc) not in closed:
+                if _grid[nr, nc] == 0:
+                    ng = g + 1
+                    if ng < g_score.get((nr, nc), 99999):
+                        g_score[(nr, nc)] = ng
+                        heapq.heappush(open_set, (ng + abs(nr - er) + abs(nc - ec), ng, nr, nc))
+                        came_from[(nr, nc)] = (r, c)
+
+    # 无路径，直线移动（fallback）
+    return [(ex, ey)]
+
+
+def _simplify_path(path):
+    """简化路径，只保留拐点"""
+    if len(path) <= 2:
+        return path
+    result = [path[0]]
+    for i in range(1, len(path) - 1):
+        prev = result[-1]
+        curr = path[i]
+        nxt = path[i + 1]
+        # 如果不在同一直线上，保留此拐点
+        dx1 = curr[0] - prev[0]
+        dy1 = curr[1] - prev[1]
+        dx2 = nxt[0] - curr[0]
+        dy2 = nxt[1] - curr[1]
+        if (dx1 == 0) != (dx2 == 0) or (dx1 != 0 and dx2 != 0 and (dy1 / (dx1 + 1e-9)) != (dy2 / (dx2 + 1e-9))):
+            result.append(curr)
+    result.append(path[-1])
+    return result
+
+
+# ============================================================
 # 数据存储 (实际项目会用数据库，这里用内存模拟)
 # ============================================================
 
@@ -107,6 +237,38 @@ def _get_next_target(robot_id, robot):
     _patrol_idx[robot_id] = (idx + 1) % len(route)
     return target
 
+
+def _plan_path(robot, target):
+    """为机器人规划路径并存储"""
+    path = _find_path(robot["x"], robot["y"], target["x"], target["y"])
+    robot["path"] = path
+    robot["path_idx"] = 0
+
+
+def _follow_path(robot):
+    """沿路径移动一步，返回是否已到达终点"""
+    path = robot.get("path", [])
+    idx = robot.get("path_idx", 0)
+    if not path or idx >= len(path):
+        return True
+
+    tx, ty = path[idx]
+    dx = tx - robot["x"]
+    dy = ty - robot["y"]
+    dist = math.sqrt(dx * dx + dy * dy)
+
+    if dist <= robot["speed"]:
+        robot["x"] = tx
+        robot["y"] = ty
+        robot["path_idx"] = idx + 1
+        robot["total_distance"] += dist * 0.01
+        return robot["path_idx"] >= len(path)
+    else:
+        robot["x"] += dx / dist * robot["speed"]
+        robot["y"] += dy / dist * robot["speed"]
+        robot["total_distance"] += robot["speed"] * 0.01
+        return False
+
 def simulate_robot_movement():
     """后台线程：模拟机器人运动"""
     TICK = 0.1  # 100ms 一次，动画更流畅
@@ -116,21 +278,14 @@ def simulate_robot_movement():
                 # 如果没有当前目标，分配一个
                 if "current_target" not in robot or robot["current_target"] is None:
                     robot["current_target"] = _get_next_target(robot_id, robot)
+                    _plan_path(robot, robot["current_target"])
 
-                target = robot["current_target"]
-                dx = target["x"] - robot["x"]
-                dy = target["y"] - robot["y"]
-                dist = math.sqrt(dx * dx + dy * dy)
+                # 沿路径移动
+                arrived = _follow_path(robot)
+                robot["battery"] = max(0, robot["battery"] - 0.005)
 
-                if dist > 3:
-                    # 每 tick 移动 speed 像素（speed=0.8 → 每秒约8px）
-                    step = min(robot["speed"], dist)
-                    robot["x"] += dx / dist * step
-                    robot["y"] += dy / dist * step
-                    robot["battery"] = max(0, robot["battery"] - 0.005)
-                    robot["total_distance"] += step * 0.01
-                else:
-                    # 到达巡检点
+                if arrived:
+                    target = robot["current_target"]
                     robot["x"] = target["x"]
                     robot["y"] = target["y"]
 
@@ -162,7 +317,6 @@ def simulate_robot_movement():
                         if len(ALERTS) > 50:
                             ALERTS.pop()
 
-                    # 短暂停留后前往下一个目标
                     robot["current_target"] = None
 
                 # 电池低自动充电
@@ -170,19 +324,13 @@ def simulate_robot_movement():
                     robot["current_target"] = None
                     robot["status"] = "returning"
                     robot["current_task"] = "返回充电"
+                    _plan_path(robot, {"x": 100, "y": 440})
 
             elif robot["status"] == "returning":
-                cx, cy = 100, 440
-                dx = cx - robot["x"]
-                dy = cy - robot["y"]
-                dist = math.sqrt(dx * dx + dy * dy)
-                if dist > 3:
-                    step = min(2.0, dist)
-                    robot["x"] += dx / dist * step
-                    robot["y"] += dy / dist * step
-                else:
-                    robot["x"] = cx
-                    robot["y"] = cy
+                arrived = _follow_path(robot)
+                if arrived:
+                    robot["x"] = 100
+                    robot["y"] = 440
                     robot["status"] = "charging"
                     robot["current_task"] = None
 
@@ -203,7 +351,7 @@ def simulate_robot_movement():
         if now - getattr(simulate_robot_movement, '_last_emit', 0) >= 0.5:
             simulate_robot_movement._last_emit = now
             socketio.emit('robot_update', {
-                'robots': {k: {kk: vv for kk, vv in v.items() if kk not in ('sensors', 'current_target')}
+                'robots': {k: {kk: vv for kk, vv in v.items() if kk not in ('sensors', 'current_target', 'path')}
                            for k, v in ROBOTS.items()},
                 'timestamp': datetime.now().strftime("%H:%M:%S")
             })
