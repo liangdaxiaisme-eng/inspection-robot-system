@@ -30,37 +30,37 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
 # 数据存储 (实际项目会用数据库，这里用内存模拟)
 # ============================================================
 
-# 巡检点位
+# 巡检点位 —— 800x520 真实工厂平面图坐标
 INSPECTION_POINTS = [
-    {"id": "P001", "name": "1号变压器", "x": 120, "y": 80, "type": "transformer", "status": "normal"},
-    {"id": "P002", "name": "2号变压器", "x": 320, "y": 80, "type": "transformer", "status": "normal"},
-    {"id": "P003", "name": "高压开关柜A", "x": 80, "y": 200, "type": "switch_cabinet", "status": "normal"},
-    {"id": "P004", "name": "高压开关柜B", "x": 200, "y": 200, "type": "switch_cabinet", "status": "warning"},
-    {"id": "P005", "name": "低压配电室", "x": 360, "y": 200, "type": "distribution", "status": "normal"},
-    {"id": "P006", "name": "电容器组", "x": 120, "y": 320, "type": "capacitor", "status": "normal"},
-    {"id": "P007", "name": "控制室", "x": 280, "y": 320, "type": "control_room", "status": "normal"},
-    {"id": "P008", "name": "充电站", "x": 450, "y": 350, "type": "charging_station", "status": "normal"},
+    {"id": "P001", "name": "1号变压器", "x": 130, "y": 100, "type": "transformer", "status": "normal"},
+    {"id": "P002", "name": "2号变压器", "x": 300, "y": 100, "type": "transformer", "status": "normal"},
+    {"id": "P003", "name": "高压开关柜A", "x": 130, "y": 260, "type": "switch_cabinet", "status": "normal"},
+    {"id": "P004", "name": "高压开关柜B", "x": 260, "y": 260, "type": "switch_cabinet", "status": "warning"},
+    {"id": "P005", "name": "低压配电室", "x": 520, "y": 140, "type": "distribution", "status": "normal"},
+    {"id": "P006", "name": "电容器组", "x": 520, "y": 260, "type": "capacitor", "status": "normal"},
+    {"id": "P007", "name": "控制室", "x": 680, "y": 380, "type": "control_room", "status": "normal"},
+    {"id": "P008", "name": "充电站", "x": 100, "y": 440, "type": "charging_station", "status": "normal"},
 ]
 
 # 机器人状态
 ROBOTS = {
     "R001": {
         "id": "R001", "name": "巡检机器人-1号", "status": "patrolling",
-        "battery": 78, "x": 150, "y": 120, "speed": 0.8,
+        "battery": 78, "x": 200, "y": 180, "speed": 0.8,
         "sensors": {"lidar": "ok", "camera": "ok", "infrared": "ok", "temp_humi": "ok"},
         "current_task": "日常巡检-上午班", "last_inspection": "2026-04-19 09:30:00",
         "total_distance": 1245.6, "fault_count": 3
     },
     "R002": {
         "id": "R002", "name": "巡检机器人-2号", "status": "charging",
-        "battery": 23, "x": 450, "y": 350, "speed": 0,
+        "battery": 23, "x": 100, "y": 440, "speed": 0,
         "sensors": {"lidar": "ok", "camera": "ok", "infrared": "warning", "temp_humi": "ok"},
         "current_task": None, "last_inspection": "2026-04-19 08:15:00",
         "total_distance": 2103.4, "fault_count": 1
     },
     "R003": {
         "id": "R003", "name": "巡检机器人-3号", "status": "idle",
-        "battery": 95, "x": 280, "y": 250, "speed": 0,
+        "battery": 95, "x": 650, "y": 300, "speed": 0,
         "sensors": {"lidar": "ok", "camera": "ok", "infrared": "ok", "temp_humi": "ok"},
         "current_task": None, "last_inspection": "2026-04-19 07:00:00",
         "total_distance": 856.2, "fault_count": 0
@@ -86,29 +86,54 @@ RECOGNITION_RESULTS = [
 # ============================================================
 
 def generate_patrol_path(robot_id):
-    """生成巡检路径"""
-    points = [(p["x"], p["y"]) for p in INSPECTION_POINTS if p["type"] != "charging_station"]
+    """为每台机器人生成巡检路径（排除充电站）"""
+    points = [p for p in INSPECTION_POINTS if p["type"] != "charging_station"]
     random.shuffle(points)
     return points
 
+# 每台巡检中机器人的路径队列和当前目标索引
+_patrol_routes = {}
+_patrol_idx = {}
+
+def _get_next_target(robot_id, robot):
+    """获取该机器人的下一个巡检目标"""
+    if robot_id not in _patrol_routes or not _patrol_routes[robot_id]:
+        _patrol_routes[robot_id] = generate_patrol_path(robot_id)
+        _patrol_idx[robot_id] = 0
+
+    route = _patrol_routes[robot_id]
+    idx = _patrol_idx[robot_id]
+    target = route[idx]
+    _patrol_idx[robot_id] = (idx + 1) % len(route)
+    return target
+
 def simulate_robot_movement():
     """后台线程：模拟机器人运动"""
+    TICK = 0.1  # 100ms 一次，动画更流畅
     while True:
         for robot_id, robot in ROBOTS.items():
             if robot["status"] == "patrolling":
-                # 模拟沿路径移动
-                target = INSPECTION_POINTS[random.randint(0, len(INSPECTION_POINTS)-1)]
+                # 如果没有当前目标，分配一个
+                if "current_target" not in robot or robot["current_target"] is None:
+                    robot["current_target"] = _get_next_target(robot_id, robot)
+
+                target = robot["current_target"]
                 dx = target["x"] - robot["x"]
                 dy = target["y"] - robot["y"]
-                dist = math.sqrt(dx*dx + dy*dy)
-                if dist > 5:
-                    step = min(robot["speed"] * 10, dist)
+                dist = math.sqrt(dx * dx + dy * dy)
+
+                if dist > 3:
+                    # 每 tick 移动 speed 像素（speed=0.8 → 每秒约8px）
+                    step = min(robot["speed"], dist)
                     robot["x"] += dx / dist * step
                     robot["y"] += dy / dist * step
-                    robot["battery"] = max(0, robot["battery"] - 0.05)
+                    robot["battery"] = max(0, robot["battery"] - 0.005)
                     robot["total_distance"] += step * 0.01
                 else:
-                    # 到达巡检点，生成巡检记录
+                    # 到达巡检点
+                    robot["x"] = target["x"]
+                    robot["y"] = target["y"]
+
                     log = {
                         "id": str(uuid.uuid4())[:8],
                         "robot_id": robot_id,
@@ -122,7 +147,7 @@ def simulate_robot_movement():
                     INSPECTION_LOGS.insert(0, log)
                     if len(INSPECTION_LOGS) > 100:
                         INSPECTION_LOGS.pop()
-                    
+
                     if log["result"] == "警告":
                         alert = {
                             "id": str(uuid.uuid4())[:8],
@@ -136,40 +161,54 @@ def simulate_robot_movement():
                         ALERTS.insert(0, alert)
                         if len(ALERTS) > 50:
                             ALERTS.pop()
-                
+
+                    # 短暂停留后前往下一个目标
+                    robot["current_target"] = None
+
                 # 电池低自动充电
                 if robot["battery"] < 20:
+                    robot["current_target"] = None
                     robot["status"] = "returning"
                     robot["current_task"] = "返回充电"
+
             elif robot["status"] == "returning":
-                # 返回充电站
-                cx, cy = 450, 350
+                cx, cy = 100, 440
                 dx = cx - robot["x"]
                 dy = cy - robot["y"]
-                dist = math.sqrt(dx*dx + dy*dy)
-                if dist > 10:
-                    robot["x"] += dx / dist * 5
-                    robot["y"] += dy / dist * 5
+                dist = math.sqrt(dx * dx + dy * dy)
+                if dist > 3:
+                    step = min(2.0, dist)
+                    robot["x"] += dx / dist * step
+                    robot["y"] += dy / dist * step
                 else:
+                    robot["x"] = cx
+                    robot["y"] = cy
                     robot["status"] = "charging"
                     robot["current_task"] = None
+
             elif robot["status"] == "charging":
-                robot["battery"] = min(100, robot["battery"] + 0.5)
+                robot["battery"] = min(100, robot["battery"] + 0.3)
                 if robot["battery"] >= 100:
                     robot["status"] = "idle"
+
             elif robot["status"] == "idle":
-                # 随机分配新任务
-                if random.random() < 0.01:
+                if random.random() < 0.02:
                     robot["status"] = "patrolling"
+                    robot["speed"] = 0.8
                     robot["current_task"] = f"日常巡检-{random.choice(['上午', '下午', '夜间'])}班"
-        
-        # 通过WebSocket广播状态
-        socketio.emit('robot_update', {
-            'robots': {k: {kk: vv for kk, vv in v.items() if kk != 'sensors'} for k, v in ROBOTS.items()},
-            'timestamp': datetime.now().strftime("%H:%M:%S")
-        })
-        
-        time.sleep(1)
+                    robot["current_target"] = None
+
+        # 广播状态（每 0.5s 一次，减少前端压力）
+        now = time.time()
+        if now - getattr(simulate_robot_movement, '_last_emit', 0) >= 0.5:
+            simulate_robot_movement._last_emit = now
+            socketio.emit('robot_update', {
+                'robots': {k: {kk: vv for kk, vv in v.items() if kk not in ('sensors', 'current_target')}
+                           for k, v in ROBOTS.items()},
+                'timestamp': datetime.now().strftime("%H:%M:%S")
+            })
+
+        time.sleep(TICK)
 
 def generate_historical_data():
     """生成历史统计数据"""
@@ -228,6 +267,7 @@ def robot_command(robot_id):
     cmd = request.json.get('command')
     if cmd == 'start_patrol':
         robot['status'] = 'patrolling'
+        robot['speed'] = 0.8
         robot['current_task'] = f'手动巡检-{datetime.now().strftime("%H:%M")}'
         return jsonify({"status": "ok", "message": f"{robot['name']} 开始巡检"})
     elif cmd == 'stop':

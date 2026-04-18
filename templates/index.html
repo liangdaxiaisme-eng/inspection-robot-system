@@ -142,7 +142,7 @@
         }
         #mapCanvas {
             width: 100%;
-            height: 420px;
+            height: 480px;
             cursor: crosshair;
         }
         .map-legend {
@@ -605,6 +605,18 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.2/dist/socket.io.min.js"></script>
     <script>
+    // roundRect polyfill (older browsers)
+    if (!CanvasRenderingContext2D.prototype.roundRect) {
+        CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, radii) {
+            const r = typeof radii === 'number' ? radii : (Array.isArray(radii) ? radii[0] : 0);
+            this.moveTo(x + r, y);
+            this.lineTo(x + w - r, y); this.quadraticCurveTo(x + w, y, x + w, y + r);
+            this.lineTo(x + w, y + h - r); this.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+            this.lineTo(x + r, y + h); this.quadraticCurveTo(x, y + h, x, y + h - r);
+            this.lineTo(x, y + r); this.quadraticCurveTo(x, y, x + r, y);
+            this.closePath();
+        };
+    }
     // ============================================================
     // 全局状态
     // ============================================================
@@ -771,129 +783,368 @@
     }
 
     // ============================================================
-    // 地图绘制
+    // 地图绘制 —— 真实工厂 2D 平面图
+    // 坐标系: 800×520, 缩放到 canvas 实际尺寸
     // ============================================================
     function drawMap() {
         const canvas = document.getElementById('mapCanvas');
         const ctx = canvas.getContext('2d');
         const rect = canvas.getBoundingClientRect();
-        canvas.width = rect.width * (window.devicePixelRatio || 1);
-        canvas.height = rect.height * (window.devicePixelRatio || 1);
-        ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
-        
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
+        ctx.scale(dpr, dpr);
+
         const W = rect.width, H = rect.height;
-        const scaleX = W / 550, scaleY = H / 420;
-        
-        // 背景
-        ctx.fillStyle = '#f0f4f8';
+        const MAP_W = 800, MAP_H = 520;
+        const sx = W / MAP_W, sy = H / MAP_H;
+        const s = Math.min(sx, sy); // uniform scale
+        const ox = (W - MAP_W * s) / 2, oy = (H - MAP_H * s) / 2;
+
+        function tx(x) { return ox + x * s; }
+        function ty(y) { return oy + y * s; }
+        function tw(w) { return w * s; }
+        function th(h) { return h * s; }
+
+        // ── 背景 & 网格 ────────────────────────────────
+        ctx.fillStyle = '#eef1f5';
         ctx.fillRect(0, 0, W, H);
-        
-        // 网格
-        ctx.strokeStyle = '#e8ecf0';
+
+        // 细网格 (每 20 单位)
+        ctx.strokeStyle = '#dde1e6';
         ctx.lineWidth = 0.5;
-        for (let x = 0; x < W; x += 30) {
-            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+        for (let x = 0; x <= MAP_W; x += 20) {
+            ctx.beginPath(); ctx.moveTo(tx(x), ty(0)); ctx.lineTo(tx(x), ty(MAP_H)); ctx.stroke();
         }
-        for (let y = 0; y < H; y += 30) {
-            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+        for (let y = 0; y <= MAP_H; y += 20) {
+            ctx.beginPath(); ctx.moveTo(tx(0), ty(y)); ctx.lineTo(tx(MAP_W), ty(y)); ctx.stroke();
         }
-        
-        // 围墙
-        ctx.strokeStyle = '#90a4ae';
-        ctx.lineWidth = 3;
-        ctx.strokeRect(20 * scaleX, 20 * scaleY, 500 * scaleX, 380 * scaleY);
-        
-        // 内部墙壁
-        ctx.strokeStyle = '#b0bec5';
-        ctx.lineWidth = 2;
-        // 横墙1
-        ctx.beginPath();
-        ctx.moveTo(60 * scaleX, 150 * scaleY);
-        ctx.lineTo(400 * scaleX, 150 * scaleY);
-        ctx.stroke();
-        // 横墙2
-        ctx.beginPath();
-        ctx.moveTo(60 * scaleX, 260 * scaleY);
-        ctx.lineTo(460 * scaleX, 260 * scaleY);
-        ctx.stroke();
-        
-        // 巡检路径
-        ctx.strokeStyle = '#bbdefb';
-        ctx.lineWidth = 1.5;
-        ctx.setLineDash([5, 5]);
+
+        // ── 辅助函数 ───────────────────────────────────
+        function wall(x1, y1, x2, y2, color, lw) {
+            ctx.strokeStyle = color || '#37474f';
+            ctx.lineWidth = lw || 2.5;
+            ctx.beginPath(); ctx.moveTo(tx(x1), ty(y1)); ctx.lineTo(tx(x2), ty(y2)); ctx.stroke();
+        }
+        function rect(x, y, w, h, fill, stroke, lw) {
+            if (fill) { ctx.fillStyle = fill; ctx.fillRect(tx(x), ty(y), tw(w), th(h)); }
+            if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw || 1.5; ctx.strokeRect(tx(x), ty(y), tw(w), th(h)); }
+        }
+        function label(text, x, y, size, color, bold, align) {
+            ctx.fillStyle = color || '#263238';
+            ctx.font = (bold ? 'bold ' : '') + (size || 12) + 'px "PingFang SC","Microsoft YaHei",sans-serif';
+            ctx.textAlign = align || 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, tx(x), ty(y));
+        }
+        function door(x1, y1, x2, y2) {
+            // 门洞: 白色覆盖 + 门扇弧线
+            ctx.strokeStyle = '#eef1f5'; ctx.lineWidth = 5;
+            ctx.beginPath(); ctx.moveTo(tx(x1), ty(y1)); ctx.lineTo(tx(x2), ty(y2)); ctx.stroke();
+            // 门扇
+            const dx = x2 - x1, dy = y2 - y1;
+            const len = Math.sqrt(dx*dx + dy*dy);
+            const nx = -dy/len * 14, ny = dx/len * 14;
+            ctx.strokeStyle = '#78909c'; ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.moveTo(tx(x1), ty(y1)); ctx.lineTo(tx(x1+nx), ty(y1+ny)); ctx.stroke();
+            ctx.beginPath(); ctx.arc(tx(x1), ty(y1), tw(14), Math.atan2(ny, nx), Math.atan2(dy, dx), true);
+            ctx.stroke();
+        }
+
+        // ── 厂区围墙 ───────────────────────────────────
+        rect(30, 20, 740, 480, 'rgba(55,71,79,0.04)', '#37474f', 3);
+
+        // ═══════════════════════════════════════════════
+        // 一、变配电室 (左上)  — 30,20 → 380,180
+        // ═══════════════════════════════════════════════
+        rect(30, 20, 350, 160, 'rgba(255,235,238,0.5)', '#c62828', 2);
+        label('变配电室', 205, 35, 13, '#b71c1c', true);
+        // 内墙分隔
+        wall(240, 20, 240, 120, '#b71c1c', 1.5); // 变压器区与开关柜区
+        wall(240, 140, 240, 180, '#b71c1c', 1.5);
+        // 门
+        door(240, 120, 240, 140);
+        // 1号变压器 (圆形符号)
+        ctx.beginPath(); ctx.arc(tx(130), ty(100), tw(22), 0, Math.PI*2);
+        ctx.fillStyle = '#ffcdd2'; ctx.fill();
+        ctx.strokeStyle = '#c62828'; ctx.lineWidth = 1.5; ctx.stroke();
+        label('T1', 130, 100, 10, '#b71c1c', true);
+        label('1号变压器', 130, 70, 9, '#5d4037');
+        // 2号变压器
+        ctx.beginPath(); ctx.arc(tx(300), ty(100), tw(22), 0, Math.PI*2);
+        ctx.fillStyle = '#ffcdd2'; ctx.fill();
+        ctx.strokeStyle = '#c62828'; ctx.lineWidth = 1.5; ctx.stroke();
+        label('T2', 300, 100, 10, '#b71c1c', true);
+        label('2号变压器', 300, 70, 9, '#5d4037');
+        // 高压开关柜 A (矩形符号)
+        rect(100, 210, 60, 35, '#e8eaf6', '#283593', 1.5);
+        label('开关柜A', 130, 228, 9, '#1a237e', true);
+        // 高压开关柜 B
+        rect(230, 210, 60, 35, '#fff3e0', '#e65100', 1.5);
+        label('开关柜B', 260, 228, 9, '#e65100', true);
+        // 柜内短线（模拟抽屉单元）
+        for (let i = 0; i < 4; i++) {
+            wall(108 + i*14, 218, 108 + i*14, 238, '#90a4ae', 0.5);
+        }
+
+        // ═══════════════════════════════════════════════
+        // 二、生产车间 (中上大区域) — 380,20 → 620,220
+        // ═══════════════════════════════════════════════
+        rect(380, 20, 240, 200, 'rgba(227,242,253,0.5)', '#1565c0', 2);
+        label('生产车间', 500, 35, 13, '#0d47a1', true);
+        // 生产线（3条横线 + 设备方块）
+        for (let row = 0; row < 3; row++) {
+            const ly = 70 + row * 50;
+            wall(400, ly, 600, ly, '#90caf9', 1);
+            // 工位方块
+            for (let col = 0; col < 4; col++) {
+                const lx = 420 + col * 48;
+                rect(lx, ly - 10, 20, 20, '#bbdefb', '#1976d2', 1);
+            }
+        }
+        // 传送带标识
+        label('▶ 传送带 ▶', 500, 200, 9, '#1565c0');
+
+        // ═══════════════════════════════════════════════
+        // 三、低压配电 & 电容区 (右上) — 620,20 → 770,180
+        // ═══════════════════════════════════════════════
+        rect(620, 20, 150, 280, 'rgba(243,249,225,0.5)', '#558b2f', 2);
+        label('配电区', 695, 35, 13, '#33691e', true);
+        // 低压配电室
+        rect(640, 55, 110, 60, '#f1f8e9', '#689f38', 1.5);
+        label('低压配电室', 695, 85, 10, '#33691e', true);
+        // 配电柜符号 (小方块)
+        for (let i = 0; i < 3; i++) {
+            rect(650 + i*35, 62, 12, 18, '#c8e6c9', '#388e3c', 0.8);
+        }
+        // 电容器组
+        rect(640, 220, 110, 60, '#fff8e1', '#f9a825', 1.5);
+        label('电容器组', 695, 250, 10, '#f57f17', true);
+        // 电容符号 (圆形)
+        for (let i = 0; i < 3; i++) {
+            ctx.beginPath(); ctx.arc(tx(660 + i*30), ty(232), tw(8), 0, Math.PI*2);
+            ctx.fillStyle = '#fff9c4'; ctx.fill();
+            ctx.strokeStyle = '#f9a825'; ctx.lineWidth = 1; ctx.stroke();
+        }
+
+        // ═══════════════════════════════════════════════
+        // 四、仓库区 (左下) — 30,250 → 380,400
+        // ═══════════════════════════════════════════════
+        rect(30, 250, 350, 150, 'rgba(237,231,246,0.5)', '#6a1b9a', 2);
+        label('仓库区', 205, 265, 13, '#4a148c', true);
+        // 货架 (多排)
+        for (let row = 0; row < 3; row++) {
+            for (let col = 0; col < 5; col++) {
+                rect(55 + col * 62, 290 + row * 35, 45, 20, '#e1bee7', '#8e24aa', 1);
+            }
+        }
+        label('货架区', 205, 388, 9, '#6a1b9a');
+
+        // ═══════════════════════════════════════════════
+        // 五、质检 & 包装区 (中下) — 380,250 → 620,400
+        // ═══════════════════════════════════════════════
+        rect(380, 250, 240, 150, 'rgba(255,243,224,0.5)', '#ef6c00', 2);
+        label('质检包装区', 500, 265, 13, '#e65100', true);
+        // 质检台
+        rect(400, 290, 80, 40, '#ffe0b2', '#ef6c00', 1.5);
+        label('质检台', 440, 310, 9, '#e65100', true);
+        // 包装线
+        rect(510, 290, 90, 40, '#ffe0b2', '#ef6c00', 1.5);
+        label('包装线', 555, 310, 9, '#e65100', true);
+        // 成品暂存
+        rect(400, 355, 200, 30, '#fff3e0', '#ffb74d', 1);
+        label('成品暂存区', 500, 370, 9, '#e65100');
+
+        // ═══════════════════════════════════════════════
+        // 六、控制室 & 办公区 (右下) — 620,310 → 770,500
+        // ═══════════════════════════════════════════════
+        rect(620, 310, 150, 190, 'rgba(225,245,254,0.5)', '#0277bd', 2);
+        label('控制/办公区', 695, 325, 13, '#01579b', true);
+        // 控制室
+        rect(635, 345, 120, 55, '#e1f5fe', '#0288d1', 1.5);
+        label('控制室', 695, 365, 10, '#01579b', true);
+        // 控制台符号
+        rect(650, 355, 30, 12, '#b3e5fc', '#0288d1', 0.8);
+        rect(690, 355, 30, 12, '#b3e5fc', '#0288d1', 0.8);
+        label('监控大屏', 695, 385, 8, '#0277bd');
+        // 办公室
+        rect(635, 415, 55, 35, '#e1f5fe', '#0288d1', 1);
+        label('办公室', 662, 433, 8, '#01579b');
+        // 休息室
+        rect(700, 415, 55, 35, '#e1f5fe', '#0288d1', 1);
+        label('休息室', 728, 433, 8, '#01579b');
+        // 卫生间
+        rect(635, 460, 40, 30, '#f3e5f5', '#7b1fa2', 1);
+        label('WC', 655, 475, 8, '#4a148c', true);
+
+        // ═══════════════════════════════════════════════
+        // 七、充电站 & 通道 (底部左侧) — 30,410 → 200,500
+        // ═══════════════════════════════════════════════
+        rect(30, 410, 170, 90, 'rgba(255,243,224,0.5)', '#ff8f00', 2);
+        label('机器人充电站', 115, 425, 12, '#e65100', true);
+        // 充电桩
+        for (let i = 0; i < 3; i++) {
+            rect(50 + i * 50, 445, 25, 35, '#fff8e1', '#ffa000', 1.5);
+            // 闪电符号
+            label('⚡', 62 + i * 50, 463, 12, '#ff6f00', true);
+        }
+        label('充电桩 ×3', 115, 492, 9, '#ff8f00');
+
+        // ═══════════════════════════════════════════════
+        // 八、走廊通道 (中央十字)
+        // ═══════════════════════════════════════════════
+        // 竖向主通道
+        rect(375, 180, 10, 120, 'rgba(144,164,174,0.25)', '#78909c', 1);
+        rect(615, 180, 10, 120, 'rgba(144,164,174,0.25)', '#78909c', 1);
+        // 横向主通道
+        rect(30, 175, 350, 10, 'rgba(144,164,174,0.25)', '#78909c', 1);
+        rect(380, 235, 240, 20, 'rgba(144,164,174,0.2)', '#78909c', 1);
+        rect(30, 395, 590, 10, 'rgba(144,164,174,0.2)', '#78909c', 1);
+
+        // ── 门 ──────────────────────────────────────────
+        door(380, 90, 380, 110);    // 变配电→车间
+        door(380, 310, 380, 330);   // 走廊→质检
+        door(620, 100, 620, 120);   // 车间→配电
+        door(620, 340, 620, 360);   // 走廊→控制室
+        door(150, 400, 170, 400);   // 仓库→走廊→充电站
+
+        // ── 出入口 ──────────────────────────────────────
+        // 大门 (底部)
+        wall(350, 500, 430, 500, '#263238', 4);
+        label('▼ 大门 ▼', 390, 490, 10, '#263238', true);
+
+        // ── 柱子 ────────────────────────────────────────
+        const pillars = [[60,50],[360,50],[600,50],[750,50],
+                         [60,240],[360,240],[600,240],[750,240],
+                         [60,400],[360,400],[600,400],[750,400]];
+        for (const [px,py] of pillars) {
+            ctx.fillStyle = '#455a64';
+            ctx.fillRect(tx(px)-3, ty(py)-3, 6, 6);
+        }
+
+        // ── 消防设施 ────────────────────────────────────
+        const fireIcons = [[390,50],[630,50],[50,260],[370,260],[630,320],[50,420]];
+        for (const [fx,fy] of fireIcons) {
+            ctx.fillStyle = '#d32f2f';
+            ctx.fillRect(tx(fx)-4, ty(fy)-4, 8, 8);
+            label('🧯', fx, fy, 7, '#d32f2f');
+        }
+
+        // ── 巡检路径 ────────────────────────────────────
+        ctx.strokeStyle = '#42a5f5';
+        ctx.lineWidth = 1.8;
+        ctx.setLineDash([6, 4]);
         const points = inspectionPoints;
         if (points.length > 1) {
             ctx.beginPath();
-            ctx.moveTo(points[0].x * scaleX, points[0].y * scaleY);
+            ctx.moveTo(tx(points[0].x), ty(points[0].y));
             for (let i = 1; i < points.length; i++) {
-                ctx.lineTo(points[i].x * scaleX, points[i].y * scaleY);
+                ctx.lineTo(tx(points[i].x), ty(points[i].y));
             }
+            ctx.closePath();
             ctx.stroke();
         }
         ctx.setLineDash([]);
-        
-        // 巡检点
-        for (const p of points) {
-            const x = p.x * scaleX, y = p.y * scaleY;
-            ctx.beginPath();
-            ctx.arc(x, y, 10, 0, Math.PI * 2);
-            ctx.fillStyle = p.type === 'charging_station' ? '#ff9800' : 
-                           p.status === 'warning' ? '#f44336' : '#4caf50';
-            ctx.fill();
-            ctx.strokeStyle = 'white';
-            ctx.lineWidth = 2;
-            ctx.stroke();
-            
-            // 标签
-            ctx.fillStyle = '#333';
-            ctx.font = '10px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText(p.name, x, y - 16);
-        }
-        
-        // 机器人
-        const robotColors = {
-            patrolling: '#1565c0', charging: '#e65100', idle: '#757575', returning: '#6a1b9a'
+
+        // ── 巡检点位 ────────────────────────────────────
+        const typeIcons = {
+            transformer: '⚡', switch_cabinet: '🔌', distribution: '🔋',
+            capacitor: '🆎', control_room: '🖥️', charging_station: '🔋'
         };
-        for (const [id, robot] of Object.entries(robots)) {
-            const x = robot.x * scaleX, y = robot.y * scaleY;
-            
-            // 运动轨迹光晕
-            if (robot.status === 'patrolling') {
-                ctx.beginPath();
-                ctx.arc(x, y, 18, 0, Math.PI * 2);
-                ctx.fillStyle = 'rgba(21, 101, 192, 0.15)';
-                ctx.fill();
-            }
-            
-            // 机器人主体
-            ctx.beginPath();
-            ctx.arc(x, y, 12, 0, Math.PI * 2);
-            ctx.fillStyle = robotColors[robot.status] || '#757575';
+        for (const p of points) {
+            const x = tx(p.x), y = ty(p.y);
+            // 外圈光晕
+            ctx.beginPath(); ctx.arc(x, y, 14, 0, Math.PI*2);
+            const fillColor = p.type === 'charging_station' ? '#ff9800' :
+                              p.status === 'warning' ? '#f44336' : '#43a047';
+            ctx.fillStyle = fillColor + '33';
             ctx.fill();
-            ctx.strokeStyle = 'white';
-            ctx.lineWidth = 2;
-            ctx.stroke();
-            
-            // 机器人图标
-            ctx.fillStyle = 'white';
-            ctx.font = 'bold 11px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(id.slice(-1), x, y);
-            
-            // 名称标签
-            ctx.fillStyle = '#333';
-            ctx.font = '11px sans-serif';
-            ctx.textBaseline = 'bottom';
-            ctx.fillText(robot.name, x, y - 18);
-            
-            // 电量标签
-            ctx.fillStyle = robot.battery > 50 ? '#2e7d32' : robot.battery > 20 ? '#e65100' : '#c62828';
-            ctx.font = '10px sans-serif';
-            ctx.textBaseline = 'top';
-            ctx.fillText(`${robot.battery}%`, x, y + 16);
+            // 内圈
+            ctx.beginPath(); ctx.arc(x, y, 9, 0, Math.PI*2);
+            ctx.fillStyle = fillColor;
+            ctx.fill();
+            ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+            // 序号
+            ctx.fillStyle = '#fff'; ctx.font = 'bold 9px sans-serif';
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText(p.id.slice(1), x, y);
+            // 名称
+            ctx.font = '10px "PingFang SC","Microsoft YaHei",sans-serif';
+            ctx.fillStyle = '#263238'; ctx.textBaseline = 'bottom';
+            ctx.fillText(p.name, x, y - 18);
         }
+
+        // ── 机器人 ──────────────────────────────────────
+        const rColors = { patrolling: '#1565c0', charging: '#e65100', idle: '#757575', returning: '#6a1b9a' };
+        for (const [id, robot] of Object.entries(robots)) {
+            const x = tx(robot.x), y = ty(robot.y);
+
+            // 扫描扇形 (巡检中)
+            if (robot.status === 'patrolling') {
+                ctx.beginPath(); ctx.arc(x, y, 20, 0, Math.PI*2);
+                ctx.fillStyle = 'rgba(21,101,192,0.12)'; ctx.fill();
+                // 扫描线
+                const angle = (Date.now() / 500) % (Math.PI * 2);
+                ctx.beginPath(); ctx.moveTo(x, y);
+                ctx.arc(x, y, 20, angle, angle + 0.5);
+                ctx.fillStyle = 'rgba(21,101,192,0.25)'; ctx.fill();
+            }
+
+            // 机器人本体 (圆角方形)
+            const rs = 10;
+            ctx.beginPath();
+            ctx.roundRect(x - rs, y - rs, rs*2, rs*2, 4);
+            ctx.fillStyle = rColors[robot.status] || '#757575';
+            ctx.fill();
+            ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+
+            // 编号
+            ctx.fillStyle = '#fff'; ctx.font = 'bold 10px sans-serif';
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText(id.slice(-1), x, y);
+
+            // 名称 + 电量
+            ctx.font = '10px "PingFang SC","Microsoft YaHei",sans-serif';
+            ctx.textBaseline = 'bottom';
+            ctx.fillStyle = '#263238';
+            ctx.fillText(robot.name, x, y - 16);
+            ctx.fillStyle = robot.battery > 50 ? '#2e7d32' : robot.battery > 20 ? '#e65100' : '#c62828';
+            ctx.font = 'bold 9px sans-serif';
+            ctx.textBaseline = 'top';
+            ctx.fillText(`⚡${robot.battery}%`, x, y + 15);
+        }
+
+        // ── 图例 ────────────────────────────────────────
+        const lx = ox + tw(MAP_W) - 130, ly = oy + th(MAP_H) - 70;
+        ctx.fillStyle = 'rgba(255,255,255,0.85)';
+        ctx.fillRect(lx - 8, ly - 8, 130, 75);
+        ctx.strokeStyle = '#b0bec5'; ctx.lineWidth = 1;
+        ctx.strokeRect(lx - 8, ly - 8, 130, 75);
+
+        ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#43a047'; ctx.fillRect(lx, ly, 8, 8); ctx.fillText('正常', lx + 14, ly + 4);
+        ctx.fillStyle = '#f44336'; ctx.fillRect(lx, ly + 16, 8, 8); ctx.fillText('警告', lx + 14, ly + 20);
+        ctx.fillStyle = '#ff9800'; ctx.fillRect(lx, ly + 32, 8, 8); ctx.fillText('充电站', lx + 14, ly + 36);
+        ctx.fillStyle = '#1565c0'; ctx.fillRect(lx, ly + 48, 8, 8); ctx.fillText('巡检机器人', lx + 14, ly + 52);
+
+        // ── 比例尺 & 指北针 ─────────────────────────────
+        // 比例尺
+        ctx.strokeStyle = '#263238'; ctx.lineWidth = 1.5;
+        const scx = ox + 10, scy = oy + th(MAP_H) - 15;
+        ctx.beginPath(); ctx.moveTo(scx, scy); ctx.lineTo(scx + 60 * s, scy); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(scx, scy - 3); ctx.lineTo(scx, scy + 3); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(scx + 60 * s, scy - 3); ctx.lineTo(scx + 60 * s, scy + 3); ctx.stroke();
+        ctx.font = '9px sans-serif'; ctx.fillStyle = '#546e7a'; ctx.textAlign = 'center';
+        ctx.fillText('10m', scx + 30 * s, scy - 7);
+
+        // 指北针
+        const ncx = ox + tw(MAP_W) - 25, ncy = oy + 25;
+        ctx.beginPath(); ctx.moveTo(ncx, ncy - 14); ctx.lineTo(ncx - 6, ncy + 6); ctx.lineTo(ncx + 6, ncy + 6);
+        ctx.closePath(); ctx.fillStyle = '#c62828'; ctx.fill();
+        ctx.beginPath(); ctx.moveTo(ncx, ncy + 14); ctx.lineTo(ncx - 6, ncy + 6); ctx.lineTo(ncx + 6, ncy + 6);
+        ctx.closePath(); ctx.fillStyle = '#bdbdbd'; ctx.fill();
+        ctx.font = 'bold 11px sans-serif'; ctx.fillStyle = '#c62828'; ctx.textAlign = 'center';
+        ctx.fillText('N', ncx, ncy - 18);
     }
 
     // ============================================================
