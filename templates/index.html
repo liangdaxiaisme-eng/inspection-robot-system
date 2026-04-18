@@ -15,25 +15,85 @@
             --dark: #1e293b;
             --card-bg: #ffffff;
             --body-bg: #f0f2f5;
+            --text: #333;
+            --text-secondary: #666;
+            --text-muted: #999;
+            --border: #eee;
+            --border-strong: #e0e0e0;
+            --nav-bg: linear-gradient(135deg, #1a237e 0%, #0d47a1 50%, #01579b 100%);
+            --nav-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            --card-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            --card-hover-shadow: 0 4px 12px rgba(0,0,0,0.12);
+            --map-bg: #f8f9fa;
+            --hover-bg: #f8f9ff;
+            --scroll-thumb: #ddd;
+            --upload-bg: #fafafa;
+            --upload-hover-bg: #f0f4ff;
+            --upload-border: #ccc;
+            --slam-bg: #1a1a2e;
+            --tab-border: #eee;
+            --robot-panel-bg: #fafafa;
+            --glow-color: transparent;
+            --stat-icon-shadow: none;
+            --scanline: transparent;
+        }
+        [data-theme="industrial"] {
+            --primary: #00e5ff;
+            --success: #00e676;
+            --warning: #ffab00;
+            --danger: #ff1744;
+            --dark: #e0e0e0;
+            --card-bg: #111827;
+            --body-bg: #0a0e17;
+            --text: #e0e0e0;
+            --text-secondary: #9ca3af;
+            --text-muted: #6b7280;
+            --border: #1f2937;
+            --border-strong: #374151;
+            --nav-bg: linear-gradient(135deg, #0d1117 0%, #161b22 50%, #0d1117 100%);
+            --nav-shadow: 0 2px 12px rgba(0,229,255,0.15);
+            --card-shadow: 0 1px 3px rgba(0,0,0,0.4), 0 0 1px rgba(0,229,255,0.1);
+            --card-hover-shadow: 0 4px 16px rgba(0,0,0,0.5), 0 0 8px rgba(0,229,255,0.15);
+            --map-bg: #0d1117;
+            --hover-bg: rgba(0,229,255,0.05);
+            --scroll-thumb: #374151;
+            --upload-bg: #111827;
+            --upload-hover-bg: rgba(0,229,255,0.05);
+            --upload-border: #374151;
+            --slam-bg: #0d1117;
+            --tab-border: #1f2937;
+            --robot-panel-bg: #0f1520;
+            --glow-color: rgba(0,229,255,0.3);
+            --stat-icon-shadow: 0 0 12px rgba(0,229,255,0.3);
+            --scanline: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,229,255,0.015) 2px, rgba(0,229,255,0.015) 4px);
         }
         * { box-sizing: border-box; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
             background: var(--body-bg);
             margin: 0;
-            color: #333;
+            color: var(--text);
+            transition: background 0.4s, color 0.4s;
+        }
+        [data-theme="industrial"] body::after {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background: var(--scanline);
+            pointer-events: none;
+            z-index: 9999;
         }
         
         /* 顶部导航 */
         .top-nav {
-            background: linear-gradient(135deg, #1a237e 0%, #0d47a1 50%, #01579b 100%);
+            background: var(--nav-bg);
             color: white;
             padding: 0 24px;
             height: 56px;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            box-shadow: var(--nav-shadow);
             position: sticky;
             top: 0;
             z-index: 1000;
@@ -60,9 +120,37 @@
             display: inline-block;
             animation: pulse 2s infinite;
         }
+        [data-theme="industrial"] .nav-right .status-dot {
+            background: #00e676;
+            box-shadow: 0 0 8px #00e676;
+        }
         @keyframes pulse {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.5; }
+        }
+        /* 主题切换按钮 */
+        .theme-toggle {
+            background: rgba(255,255,255,0.15);
+            border: 1px solid rgba(255,255,255,0.25);
+            color: white;
+            padding: 6px 14px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.3s;
+        }
+        .theme-toggle:hover {
+            background: rgba(255,255,255,0.25);
+        }
+        [data-theme="industrial"] .theme-toggle {
+            border-color: rgba(0,229,255,0.4);
+        }
+        [data-theme="industrial"] .theme-toggle:hover {
+            background: rgba(0,229,255,0.15);
+            box-shadow: 0 0 12px rgba(0,229,255,0.2);
         }
         
         /* 统计卡片 */
@@ -79,10 +167,10 @@
             display: flex;
             align-items: center;
             gap: 16px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-            transition: transform 0.2s;
+            box-shadow: var(--card-shadow);
+            transition: transform 0.2s, box-shadow 0.2s, background 0.4s;
         }
-        .stat-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.12); }
+        .stat-card:hover { transform: translateY(-2px); box-shadow: var(--card-hover-shadow); }
         .stat-icon {
             width: 48px; height: 48px;
             border-radius: 12px;
@@ -91,6 +179,7 @@
             justify-content: center;
             font-size: 24px;
             color: white;
+            box-shadow: var(--stat-icon-shadow);
         }
         .stat-icon.blue { background: linear-gradient(135deg, #42a5f5, #1565c0); }
         .stat-icon.green { background: linear-gradient(135deg, #66bb6a, #2e7d32); }
@@ -99,7 +188,7 @@
         .stat-icon.purple { background: linear-gradient(135deg, #ab47bc, #6a1b9a); }
         .stat-icon.cyan { background: linear-gradient(135deg, #26c6da, #00838f); }
         .stat-value { font-size: 28px; font-weight: 700; color: var(--dark); line-height: 1; }
-        .stat-label { font-size: 13px; color: #666; margin-top: 4px; }
+        .stat-label { font-size: 13px; color: var(--text-secondary); margin-top: 4px; }
         
         /* 主布局 */
         .main-content {
@@ -116,12 +205,13 @@
         .panel {
             background: var(--card-bg);
             border-radius: 12px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            box-shadow: var(--card-shadow);
             overflow: hidden;
+            transition: background 0.4s, box-shadow 0.4s;
         }
         .panel-header {
             padding: 14px 20px;
-            border-bottom: 1px solid #eee;
+            border-bottom: 1px solid var(--border);
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -135,10 +225,14 @@
         /* 机器人画布 */
         .map-container {
             position: relative;
-            background: #f8f9fa;
+            background: var(--map-bg);
             border-radius: 8px;
             overflow: hidden;
-            border: 1px solid #e0e0e0;
+            border: 1px solid var(--border-strong);
+            transition: background 0.4s, border 0.4s;
+        }
+        [data-theme="industrial"] .map-container {
+            box-shadow: inset 0 0 30px rgba(0,0,0,0.3);
         }
         #mapCanvas {
             width: 100%;
@@ -171,12 +265,12 @@
             display: flex;
             align-items: center;
             padding: 12px 16px;
-            border-bottom: 1px solid #f0f0f0;
+            border-bottom: 1px solid var(--border);
             gap: 12px;
             transition: background 0.2s;
             cursor: pointer;
         }
-        .robot-item:hover { background: #f8f9ff; }
+        .robot-item:hover { background: var(--hover-bg); }
         .robot-item:last-child { border-bottom: none; }
         .robot-avatar {
             width: 44px; height: 44px;
@@ -194,7 +288,7 @@
         .robot-avatar.returning { background: linear-gradient(135deg, #ab47bc, #6a1b9a); }
         .robot-info { flex: 1; min-width: 0; }
         .robot-name { font-weight: 600; font-size: 14px; color: var(--dark); }
-        .robot-task { font-size: 12px; color: #888; margin-top: 2px; }
+        .robot-task { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
         .robot-status {
             padding: 3px 10px;
             border-radius: 12px;
@@ -202,10 +296,10 @@
             font-weight: 600;
             white-space: nowrap;
         }
-        .robot-status.patrolling { background: #e3f2fd; color: #1565c0; }
-        .robot-status.charging { background: #fff3e0; color: #e65100; }
-        .robot-status.idle { background: #f5f5f5; color: #757575; }
-        .robot-status.returning { background: #f3e5f5; color: #6a1b9a; }
+        .robot-status.patrolling { background: rgba(21,101,192,0.15); color: #42a5f5; }
+        .robot-status.charging { background: rgba(230,81,0,0.15); color: #ffa726; }
+        .robot-status.idle { background: rgba(117,117,117,0.15); color: #9e9e9e; }
+        .robot-status.returning { background: rgba(106,27,154,0.15); color: #ab47bc; }
         
         /* 电池条 */
         .battery-bar {
@@ -217,7 +311,7 @@
         .battery-track {
             flex: 1;
             height: 6px;
-            background: #e0e0e0;
+            background: var(--border-strong);
             border-radius: 3px;
             overflow: hidden;
         }
@@ -229,7 +323,7 @@
         .battery-fill.high { background: var(--success); }
         .battery-fill.medium { background: var(--warning); }
         .battery-fill.low { background: var(--danger); }
-        .battery-text { font-size: 11px; color: #888; min-width: 35px; text-align: right; }
+        .battery-text { font-size: 11px; color: var(--text-muted); min-width: 35px; text-align: right; }
         
         /* 传感器状态 */
         .sensor-grid {
@@ -244,15 +338,15 @@
             border-radius: 6px;
             font-size: 11px;
         }
-        .sensor-item.ok { background: #e8f5e9; color: #2e7d32; }
-        .sensor-item.warning { background: #fff3e0; color: #e65100; }
+        .sensor-item.ok { background: rgba(46,125,50,0.12); color: #66bb6a; }
+        .sensor-item.warning { background: rgba(230,81,0,0.12); color: #ffa726; }
         .sensor-item i { font-size: 16px; display: block; margin-bottom: 2px; }
         
         /* 告警列表 */
         .alert-item {
             padding: 10px 14px;
             border-left: 3px solid var(--warning);
-            background: #fffde7;
+            background: rgba(255,171,0,0.08);
             border-radius: 0 8px 8px 0;
             margin-bottom: 8px;
             font-size: 13px;
@@ -263,32 +357,33 @@
         }
         .alert-item.critical {
             border-left-color: var(--danger);
-            background: #ffebee;
+            background: rgba(255,23,68,0.08);
         }
         .alert-item.acked {
-            border-left-color: #bdbdbd;
-            background: #f5f5f5;
+            border-left-color: var(--border-strong);
+            background: rgba(128,128,128,0.08);
             opacity: 0.6;
         }
-        .alert-time { font-size: 11px; color: #999; white-space: nowrap; }
+        .alert-time { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
         .alert-msg { flex: 1; }
         .alert-btn {
             font-size: 11px;
             padding: 2px 8px;
-            border: 1px solid #ddd;
+            border: 1px solid var(--border-strong);
             border-radius: 4px;
-            background: white;
+            background: var(--card-bg);
             cursor: pointer;
             white-space: nowrap;
+            color: var(--text);
         }
-        .alert-btn:hover { background: #f0f0f0; }
+        .alert-btn:hover { background: var(--hover-bg); }
         
         /* 巡检日志 */
         .log-item {
             display: flex;
             align-items: center;
             padding: 8px 0;
-            border-bottom: 1px solid #f0f0f0;
+            border-bottom: 1px solid var(--border);
             font-size: 13px;
             gap: 10px;
         }
@@ -299,9 +394,9 @@
             font-size: 11px;
             font-weight: 600;
         }
-        .log-result.normal { background: #e8f5e9; color: #2e7d32; }
-        .log-result.warning { background: #fff3e0; color: #e65100; }
-        .log-time { color: #999; font-size: 11px; min-width: 70px; }
+        .log-result.normal { background: rgba(46,125,50,0.12); color: #66bb6a; }
+        .log-result.warning { background: rgba(230,81,0,0.12); color: #ffa726; }
+        .log-time { color: var(--text-muted); font-size: 11px; min-width: 70px; }
         .log-detail { flex: 1; }
         
         /* 图表 */
@@ -312,24 +407,24 @@
         
         /* 图像识别 */
         .upload-zone {
-            border: 2px dashed #ccc;
+            border: 2px dashed var(--upload-border);
             border-radius: 12px;
             padding: 30px;
             text-align: center;
             cursor: pointer;
             transition: all 0.3s;
-            background: #fafafa;
+            background: var(--upload-bg);
         }
         .upload-zone:hover {
             border-color: var(--primary);
-            background: #f0f4ff;
+            background: var(--upload-hover-bg);
         }
-        .upload-zone i { font-size: 40px; color: #aaa; }
-        .upload-zone p { margin: 8px 0 0; color: #888; font-size: 14px; }
+        .upload-zone i { font-size: 40px; color: var(--text-muted); }
+        .upload-zone p { margin: 8px 0 0; color: var(--text-secondary); font-size: 14px; }
         .recognition-result {
             margin-top: 16px;
             padding: 16px;
-            background: #f8f9fa;
+            background: var(--robot-panel-bg);
             border-radius: 8px;
         }
         .rec-item {
@@ -337,13 +432,13 @@
             justify-content: space-between;
             align-items: center;
             padding: 8px 0;
-            border-bottom: 1px solid #eee;
+            border-bottom: 1px solid var(--border);
         }
         .rec-item:last-child { border-bottom: none; }
         .confidence-bar {
             width: 80px;
             height: 6px;
-            background: #e0e0e0;
+            background: var(--border-strong);
             border-radius: 3px;
             overflow: hidden;
         }
@@ -372,8 +467,8 @@
             border-radius: 8px;
             text-align: center;
         }
-        .sensor-card.ok { background: #e8f5e9; }
-        .sensor-card.warning { background: #fff3e0; }
+        .sensor-card.ok { background: rgba(46,125,50,0.1); }
+        .sensor-card.warning { background: rgba(230,81,0,0.1); }
         .sensor-card i { font-size: 28px; display: block; margin-bottom: 4px; }
         
         /* 按钮组 */
@@ -400,13 +495,13 @@
             overflow-y: auto;
         }
         .scroll-area::-webkit-scrollbar { width: 4px; }
-        .scroll-area::-webkit-scrollbar-thumb { background: #ddd; border-radius: 2px; }
+        .scroll-area::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border-radius: 2px; }
         
         /* Tab */
         .tab-bar {
             display: flex;
             gap: 0;
-            border-bottom: 2px solid #eee;
+            border-bottom: 2px solid var(--tab-border);
             padding: 0 20px;
         }
         .tab-item {
@@ -415,7 +510,7 @@
             cursor: pointer;
             border-bottom: 2px solid transparent;
             margin-bottom: -2px;
-            color: #666;
+            color: var(--text-secondary);
             transition: all 0.2s;
         }
         .tab-item:hover { color: var(--primary); }
@@ -433,6 +528,10 @@
     <nav class="top-nav">
         <h1><i class="bi bi-robot"></i> 工厂分布式智能巡检机器人系统</h1>
         <div class="nav-right">
+            <button class="theme-toggle" onclick="toggleTheme()" id="themeBtn">
+                <i class="bi bi-moon-stars" id="themeIcon"></i>
+                <span id="themeText">工业风</span>
+            </button>
             <span><span class="status-dot"></span> 系统在线</span>
             <span id="clock">--:--:--</span>
         </div>
@@ -624,6 +723,36 @@
     let inspectionPoints = [];
     let chartInspections = null;
     let chartFaults = null;
+
+    // ============================================================
+    // 主题切换
+    // ============================================================
+    function toggleTheme() {
+        const body = document.body;
+        const current = body.getAttribute('data-theme');
+        if (current === 'industrial') {
+            body.removeAttribute('data-theme');
+            localStorage.setItem('theme', 'light');
+            document.getElementById('themeIcon').className = 'bi bi-moon-stars';
+            document.getElementById('themeText').textContent = '工业风';
+        } else {
+            body.setAttribute('data-theme', 'industrial');
+            localStorage.setItem('theme', 'industrial');
+            document.getElementById('themeIcon').className = 'bi bi-brightness-high';
+            document.getElementById('themeText').textContent = '经典风';
+        }
+        // 重绘地图
+        drawMap();
+    }
+    // 初始化主题
+    (function() {
+        const saved = localStorage.getItem('theme');
+        if (saved === 'industrial') {
+            document.body.setAttribute('data-theme', 'industrial');
+            document.getElementById('themeIcon').className = 'bi bi-brightness-high';
+            document.getElementById('themeText').textContent = '经典风';
+        }
+    })();
 
     // ============================================================
     // 时钟
@@ -836,12 +965,37 @@
         function tw(w) { return w * s; }
         function th(h) { return h * s; }
 
+        // 主题色检测
+        const isDark = document.body.getAttribute('data-theme') === 'industrial';
+        const C = {
+            bg:        isDark ? '#0d1117' : '#eef1f5',
+            grid:      isDark ? '#161b22' : '#dde1e6',
+            wall:      isDark ? '#00e5ff' : '#37474f',
+            wallDim:   isDark ? '#00e5ff55' : '#b0bec5',
+            label:     isDark ? '#9ca3af' : '#263238',
+            path:      isDark ? '#00e5ff' : '#42a5f5',
+            glow:      isDark ? 'rgba(0,229,255,0.15)' : 'rgba(21,101,192,0.12)',
+            glowScan:  isDark ? 'rgba(0,229,255,0.3)' : 'rgba(21,101,192,0.25)',
+            legendBg:  isDark ? 'rgba(17,24,39,0.9)' : 'rgba(255,255,255,0.85)',
+            legendBd:  isDark ? '#374151' : '#b0bec5',
+            legendText:isDark ? '#9ca3af' : '#546e7a',
+            scaleLine: isDark ? '#6b7280' : '#263238',
+            scaleText: isDark ? '#6b7280' : '#546e7a',
+            northRed:  isDark ? '#ff1744' : '#c62828',
+            northGray: isDark ? '#374151' : '#bdbdbd',
+            pillar:    isDark ? '#374151' : '#455a64',
+            fire:      isDark ? '#ff1744' : '#d32f2f',
+            doorWall:  isDark ? '#0d1117' : '#eef1f5',
+            doorArc:   isDark ? '#4b5563' : '#78909c',
+            corridor:  isDark ? 'rgba(0,229,255,0.06)' : 'rgba(144,164,174,0.25)',
+        };
+
         // ── 背景 & 网格 ────────────────────────────────
-        ctx.fillStyle = '#eef1f5';
+        ctx.fillStyle = C.bg;
         ctx.fillRect(0, 0, W, H);
 
         // 细网格 (每 20 单位)
-        ctx.strokeStyle = '#dde1e6';
+        ctx.strokeStyle = C.grid;
         ctx.lineWidth = 0.5;
         for (let x = 0; x <= MAP_W; x += 20) {
             ctx.beginPath(); ctx.moveTo(tx(x), ty(0)); ctx.lineTo(tx(x), ty(MAP_H)); ctx.stroke();
@@ -852,7 +1006,7 @@
 
         // ── 辅助函数 ───────────────────────────────────
         const wall = (x1, y1, x2, y2, color, lw) => {
-            ctx.strokeStyle = color || '#37474f';
+            ctx.strokeStyle = color || C.wall;
             ctx.lineWidth = lw || 2.5;
             ctx.beginPath(); ctx.moveTo(tx(x1), ty(y1)); ctx.lineTo(tx(x2), ty(y2)); ctx.stroke();
         };
@@ -861,34 +1015,34 @@
             if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw || 1.5; ctx.strokeRect(tx(x), ty(y), tw(w), th(h)); }
         };
         const lbl = (text, x, y, size, color, bold, align) => {
-            ctx.fillStyle = color || '#263238';
+            ctx.fillStyle = color || C.label;
             ctx.font = (bold ? 'bold ' : '') + (size || 12) + 'px "PingFang SC","Microsoft YaHei",sans-serif';
             ctx.textAlign = align || 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText(text, tx(x), ty(y));
         };
         const door = (x1, y1, x2, y2) => {
-            // 门洞: 白色覆盖 + 门扇弧线
-            ctx.strokeStyle = '#eef1f5'; ctx.lineWidth = 5;
+            // 门洞: 背景色覆盖 + 门扇弧线
+            ctx.strokeStyle = C.doorWall; ctx.lineWidth = 5;
             ctx.beginPath(); ctx.moveTo(tx(x1), ty(y1)); ctx.lineTo(tx(x2), ty(y2)); ctx.stroke();
             // 门扇
             const dx = x2 - x1, dy = y2 - y1;
             const len = Math.sqrt(dx*dx + dy*dy);
             const nx = -dy/len * 14, ny = dx/len * 14;
-            ctx.strokeStyle = '#78909c'; ctx.lineWidth = 1;
+            ctx.strokeStyle = C.doorArc; ctx.lineWidth = 1;
             ctx.beginPath(); ctx.moveTo(tx(x1), ty(y1)); ctx.lineTo(tx(x1+nx), ty(y1+ny)); ctx.stroke();
             ctx.beginPath(); ctx.arc(tx(x1), ty(y1), tw(14), Math.atan2(ny, nx), Math.atan2(dy, dx), true);
             ctx.stroke();
         };
 
         // ── 厂区围墙 ───────────────────────────────────
-        frect(30, 20, 740, 480, 'rgba(55,71,79,0.04)', '#37474f', 3);
+        frect(30, 20, 740, 480, isDark ? 'rgba(0,229,255,0.03)' : 'rgba(55,71,79,0.04)', C.wall, 3);
 
         // ═══════════════════════════════════════════════
         // 一、变配电室 (左上)  — 30,20 → 380,180
         // ═══════════════════════════════════════════════
-        frect(30, 20, 350, 160, 'rgba(255,235,238,0.5)', '#c62828', 2);
-        lbl('变配电室', 205, 35, 13, '#b71c1c', true);
+        frect(30, 20, 350, 160, isDark ? 'rgba(255,23,68,0.06)' : 'rgba(255,235,238,0.5)', isDark ? '#ff1744' : '#c62828', 2);
+        lbl('变配电室', 205, 35, 13, isDark ? '#ff1744' : '#b71c1c', true);
         // 内墙分隔
         wall(240, 20, 240, 120, '#b71c1c', 1.5); // 变压器区与开关柜区
         wall(240, 140, 240, 180, '#b71c1c', 1.5);
