@@ -638,10 +638,16 @@
     updateClock();
 
     // ============================================================
-    // WebSocket 连接
+    // WebSocket 连接 + API 轮询兜底
     // ============================================================
     const socket = io();
-    socket.on('connect', () => console.log('Connected'));
+    let wsConnected = false;
+
+    socket.on('connect', () => {
+        wsConnected = true;
+        console.log('WebSocket connected');
+    });
+    socket.on('disconnect', () => { wsConnected = false; });
     socket.on('robot_update', (data) => {
         robots = data.robots;
         document.getElementById('map-time').textContent = data.timestamp;
@@ -650,17 +656,43 @@
         updateStats();
     });
 
+    // 轮询兜底：每 1 秒从 API 拉取机器人位置
+    setInterval(async () => {
+        if (!wsConnected) {
+            try {
+                const data = await fetch('/api/robots').then(r => r.json());
+                const robotsObj = {};
+                data.forEach(r => {
+                    const { sensors, current_target, ...rest } = r;
+                    robotsObj[r.id] = rest;
+                });
+                robots = robotsObj;
+                document.getElementById('map-time').textContent =
+                    new Date().toLocaleTimeString('zh-CN', { hour12: false });
+                renderRobotList();
+                drawMap();
+                updateStats();
+            } catch (e) {}
+        }
+    }, 1000);
+
     // ============================================================
     // 初始数据加载
     // ============================================================
     async function loadInitialData() {
-        const [pts, logs, alerts, stats] = await Promise.all([
+        const [pts, robotsData, logs, alerts, stats] = await Promise.all([
             fetch('/api/points').then(r => r.json()),
+            fetch('/api/robots').then(r => r.json()),
             fetch('/api/logs').then(r => r.json()),
             fetch('/api/alerts').then(r => r.json()),
             fetch('/api/stats').then(r => r.json()),
         ]);
         inspectionPoints = pts;
+        // 初始化机器人数据
+        robotsData.forEach(r => {
+            const { sensors, current_target, ...rest } = r;
+            robots[r.id] = rest;
+        });
         renderLogs(logs);
         renderAlerts(alerts);
         updateStatsFromAPI(stats);
