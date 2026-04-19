@@ -42,6 +42,37 @@
 
 ### 快速运行
 
+#### Windows 系统
+
+1. **安装 Python**
+   - 访问 https://www.python.org/downloads/
+   - 下载 Python 3.10 或更高版本
+   - 安装时**务必勾选** "Add Python to PATH"
+
+2. **打开命令提示符（CMD）或 PowerShell**
+
+3. **进入项目目录**
+   ```cmd
+   cd C:\path\to\inspection-robot-system
+   ```
+
+4. **安装依赖**
+   ```cmd
+   pip install -r requirements.txt
+   ```
+
+5. **启动系统**
+   ```cmd
+   python app.py
+   ```
+
+6. **打开浏览器访问**
+   ```
+   http://localhost:5000
+   ```
+
+#### Linux / macOS 系统
+
 ```bash
 # 1. 安装依赖
 pip install -r requirements.txt
@@ -52,6 +83,17 @@ python app.py
 # 3. 打开浏览器访问
 # http://localhost:5000
 ```
+
+#### 常见问题
+
+**Q: Python 命令找不到？**  
+A: 确保安装时勾选了 "Add Python to PATH"，或重启终端/命令提示符。
+
+**Q: pip 命令找不到？**  
+A: 使用 `python -m pip install -r requirements.txt` 代替。
+
+**Q: 端口 5000 已被占用？**  
+A: 修改 `app.py` 中的端口号，或关闭占用端口的程序。
 
 ### 技术栈
 
